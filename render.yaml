@@ -1,0 +1,14 @@
+# Render "Blueprint" — automatski podešava servis.
+# Na render.com: New → Blueprint → poveži repo → dodaj ANTHROPIC_API_KEY.
+services:
+  - type: web
+    name: nutripilot
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: node server.js
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false          # unosi se ručno u Render dashboard-u (tajna)
+      - key: MODEL
+        value: claude-haiku-4-5

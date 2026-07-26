@@ -1,0 +1,12 @@
+# Kopiraj ovaj fajl u ".env" i popuni vrijednosti.
+
+# Tvoj Anthropic API ključ (https://console.anthropic.com/ -> API Keys)
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Model za procjenu. Default je jeftin i brz.
+#   claude-haiku-4-5   -> najjeftiniji, brz (preporuka za start i skalu)
+#   claude-sonnet-4-6  -> tačniji, skuplji
+MODEL=claude-haiku-4-5
+
+# Port servera (opciono)
+PORT=3000

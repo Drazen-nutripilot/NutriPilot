@@ -1,7 +1,7 @@
 {
   "name": "nutripilot",
   "version": "0.1.0",
-  "description": "NutriPilot - AI trener za ishranu",
+  "description": "NutriPilot — AI trener za ishranu (MVP sa pravom AI procjenom kalorija). Bez npm zavisnosti.",
   "type": "module",
   "main": "server.js",
   "scripts": {

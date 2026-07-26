@@ -25,7 +25,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = process.env.MODEL || 'claude-haiku-4-5'; // jeftin i brz; tačnije: 'claude-sonnet-4-6'
 const PORT = process.env.PORT || 3000;
-const PUBLIC = path.join(__dirname, 'public');
+const PUBLIC = __dirname; // servira iz korijena (nema potrebe za public/ folderom)
 
 if (!API_KEY) {
   console.warn('\n⚠️  ANTHROPIC_API_KEY nije postavljen. Kopiraj .env.example u .env i ubaci ključ.\n');
@@ -229,16 +229,20 @@ async function handleCoach(reqBody, res) {
   json(res, 200, { answer: text || 'Tu sam da pomognem — postavi pitanje o ishrani.' });
 }
 
-/* ---------- statički fajlovi ---------- */
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
+/* ---------- statički fajlovi (samo index.html + bezbjedni tipovi; server/kod se ne serviraju) ---------- */
+const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
+const BLOCK = new Set(['server.js','package.json','package-lock.json','.env','.env.example','dockerfile','procfile','render.yaml','readme.md','deploy.md','.gitignore']);
 function serveStatic(req, res) {
   let rel = decodeURIComponent(req.url.split('?')[0]);
   if (rel === '/') rel = '/index.html';
-  const file = path.join(PUBLIC, path.normalize(rel).replace(/^(\.\.[/\\])+/, ''));
-  if (!file.startsWith(PUBLIC) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+  const safe = path.normalize(rel).replace(/^(\.\.[/\\])+/, '');
+  const file = path.join(PUBLIC, safe);
+  const base = path.basename(file).toLowerCase();
+  const ext = path.extname(file).toLowerCase();
+  if (!file.startsWith(PUBLIC) || BLOCK.has(base) || base.startsWith('.') || !MIME[ext] || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
     res.writeHead(404); return res.end('Not found');
   }
-  res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+  res.writeHead(200, { 'Content-Type': MIME[ext] });
   fs.createReadStream(file).pipe(res);
 }
 

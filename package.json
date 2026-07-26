@@ -1,8 +1,14 @@
-# Univerzalni deploy (Railway, Fly.io, Render, bilo koji Docker host)
-FROM node:20-alpine
-WORKDIR /app
-COPY . .
-# Nema npm zavisnosti — ništa se ne instalira.
-ENV NODE_ENV=production
-EXPOSE 3000
-CMD ["node", "server.js"]
+{
+  "name": "nutripilot",
+  "version": "0.1.0",
+  "description": "NutriPilot - AI trener za ishranu",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

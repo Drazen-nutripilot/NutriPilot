@@ -23,7 +23,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 })();
 
 const API_KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = process.env.MODEL || 'claude-haiku-4-5'; // jeftin i brz; tačnije: 'claude-sonnet-4-6'
+const MODEL = process.env.MODEL || 'claude-haiku-4-5'; // jeftin i brz (tekst, trener, plan)
+const VISION_MODEL = process.env.VISION_MODEL || 'claude-sonnet-4-6'; // jači model za slike (bolje vidi hranu)
 const PORT = process.env.PORT || 3000;
 const PUBLIC = __dirname; // servira iz korijena (nema potrebe za public/ folderom)
 
@@ -61,9 +62,9 @@ const FOOD_TOOL = {
         items: {
           type: 'object',
           properties: {
-            name: { type: 'string', description: 'Naziv namirnice na jeziku korisnika.' },
+            name: { type: 'string', description: 'Naziv namirnice/jela na crnogorskom/srpskom (ijekavica).' },
             emoji: { type: 'string', description: 'Jedan emoji koji predstavlja namirnicu.' },
-            quantity: { type: 'string', description: 'Procijenjena količina, npr. "2 kom", "150 g".' },
+            quantity: { type: 'string', description: 'Procijenjena UKUPNA količina za sve komade zajedno, npr. "3 parčeta (~150 g)", "200 g".' },
             kcal: { type: 'number' },
             protein_g: { type: 'number' },
             carbs_g: { type: 'number' },
@@ -79,11 +80,16 @@ const FOOD_TOOL = {
   }
 };
 
-const SYSTEM_FOOD =
-  'Ti si iskusan nutricionista. Procjenjuješ kalorije i makronutrijente iz opisa ili slike obroka. ' +
-  'Uvijek koristi alat log_food. Budi realan sa prosječnim porcijama ako količina nije data. ' +
-  'Ako unos nije hrana ili je nejasan, vrati prazan niz items i note sa objašnjenjem. ' +
-  'Imena namirnica vrati na jeziku korisnika (srpski/crnogorski).';
+const SYSTEM_FOOD = [
+  'Ti si iskusan nutricionista i procjenjuješ kalorije i makronutrijente iz OPISA ili SLIKE obroka.',
+  'Uvijek koristi alat log_food. Uvijek odgovaraj na CRNOGORSKOM/SRPSKOM jeziku (ijekavica), prirodno i kratko — NIKAD na engleskom.',
+  'Za SLIKU: prepoznaj SVA jela i namirnice na tanjiru (ne preskači priloge, sos, hljeb).',
+  'Ako ima VIŠE komada iste namirnice (npr. 3 parčeta paprike), procijeni UKUPNU količinu za sve komade ZAJEDNO (npr. ~150 g ukupno), a NIKAKO svaki komad kao cijelu namirnicu.',
+  'Realno procijeni težinu porcije u gramima na osnovu onoga što se vidi (veličina tanjira, količina); ne precjenjuj.',
+  'Polje quantity napiši jasno i na našem jeziku, npr. "3 parčeta (~150 g)", "1 tanjir (~300 g)", "200 g".',
+  'Polje note neka bude kratka korisna rečenica na našem jeziku (ili prazno).',
+  'Ako unos nije hrana ili je nejasan, vrati prazan niz items i objašnjenje u note.'
+].join(' ');
 
 /* ---------- handleri ---------- */
 async function handleEstimate(reqBody, res) {
@@ -98,7 +104,7 @@ async function handleEstimate(reqBody, res) {
   content.push({ type: 'text', text: text ? `Obrok (opis korisnika): ${text}` : 'Procijeni hranu koja se vidi na slici.' });
 
   const data = await anthropic({
-    model: MODEL,
+    model: imageBase64 ? VISION_MODEL : MODEL, // slike → jači model za bolje prepoznavanje
     max_tokens: 1024,
     system: SYSTEM_FOOD,
     tools: [FOOD_TOOL],
@@ -229,6 +235,35 @@ async function handleCoach(reqBody, res) {
   json(res, 200, { answer: text || 'Tu sam da pomognem — postavi pitanje o ishrani.' });
 }
 
+/* ---------- barkod → Open Food Facts ---------- */
+async function handleBarcode(code, res) {
+  code = String(code || '').replace(/[^0-9]/g, '');
+  if (!code) return json(res, 400, { error: 'Nema barkoda.' });
+  try {
+    const url = `https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_sr,generic_name,brands,nutriments`;
+    const r = await fetch(url, { headers: { 'User-Agent': 'NutriPilot/1.0 (kontakt@nutripilot.app)' } });
+    const d = await r.json();
+    if (!d || d.status !== 1 || !d.product) return json(res, 200, { found: false });
+    const p = d.product, n = p.nutriments || {};
+    let kc = n['energy-kcal_100g'];
+    if (kc == null && n['energy_100g'] != null) kc = n['energy_100g'] / 4.184; // kJ → kcal
+    const name = p.product_name_sr || p.product_name || p.generic_name || p.brands || 'Proizvod';
+    json(res, 200, {
+      found: true,
+      name: p.brands && !String(name).toLowerCase().includes(String(p.brands).toLowerCase()) ? `${name} (${p.brands})` : name,
+      per100g: {
+        kcal: Math.round(kc || 0),
+        protein_g: Math.round((n['proteins_100g'] || 0) * 10) / 10,
+        carbs_g: Math.round((n['carbohydrates_100g'] || 0) * 10) / 10,
+        fat_g: Math.round((n['fat_100g'] || 0) * 10) / 10
+      }
+    });
+  } catch (e) {
+    console.error('barcode error:', e?.message || e);
+    json(res, 502, { error: 'Greška pri pretrazi baze proizvoda.' });
+  }
+}
+
 /* ---------- statički fajlovi (samo index.html + bezbjedni tipovi; server/kod se ne serviraju) ---------- */
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
 const BLOCK = new Set(['server.js','package.json','package-lock.json','.env','.env.example','dockerfile','procfile','render.yaml','readme.md','deploy.md','.gitignore']);
@@ -263,7 +298,11 @@ function readBody(req) {
 http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && req.url.startsWith('/api/health')) {
-      return json(res, 200, { ok: true, model: MODEL, keySet: !!API_KEY });
+      return json(res, 200, { ok: true, model: MODEL, vision: VISION_MODEL, keySet: !!API_KEY });
+    }
+    if (req.method === 'GET' && req.url.startsWith('/api/barcode')) {
+      const code = new URL(req.url, 'http://x').searchParams.get('code');
+      return handleBarcode(code, res);
     }
     if (req.method === 'POST' && req.url.startsWith('/api/estimate')) return handleEstimate(await readBody(req), res);
     if (req.method === 'POST' && req.url.startsWith('/api/plan')) return handlePlan(await readBody(req), res);

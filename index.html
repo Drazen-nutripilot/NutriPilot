@@ -359,6 +359,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
 .trend-dn{color:var(--green2);font-weight:700}
 .trend-up{color:var(--danger);font-weight:700}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -486,7 +487,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">NutriPilot v0.14 · demo</p>
+      <p class="hint" style="text-align:center">NutriPilot v0.15 · demo</p>
     </div>
   </div>
 
@@ -626,14 +627,44 @@ function computeAndReveal(){
   setTimeout(()=>{ obI=6; renderStep(); },1400);
 }
 function finishOnboard(){
-  S.onboarded=true;
+  S.onboarded=true; S.lastDate=todayStr();
   $('onboard').classList.add('hide');
   $('main').classList.remove('hide'); $('tabbar').classList.remove('hide'); $('fab').classList.remove('hide');
-  renderAll();
+  document.body.classList.toggle('dark',S.theme==='dark');
+  renderAll(); save();
+}
+
+/* ================= PAMĆENJE (localStorage) ================= */
+const STORE='nutripilot_v1';
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+function save(){ try{ localStorage.setItem(STORE, JSON.stringify(S)); }catch(e){} }
+function load(){
+  try{
+    const raw=localStorage.getItem(STORE); if(!raw) return false;
+    Object.assign(S, JSON.parse(raw));
+    // novi dan → resetuj dnevne brojače, ostalo (profil, istorija, navike) zadrži
+    if(S.lastDate!==todayStr()){
+      S.meals=[]; S.eaten={kcal:0,p:0,c:0,f:0}; S.water=0; S.steps=0;
+      if(Array.isArray(S.weekKcal)) S.weekKcal[6]=0;
+      S.lastDate=todayStr();
+    }
+    recomputeEaten();
+    return !!S.onboarded;
+  }catch(e){ return false; }
+}
+function startApp(){
+  if(load()){
+    $('onboard').classList.add('hide');
+    $('main').classList.remove('hide'); $('tabbar').classList.remove('hide'); $('fab').classList.remove('hide');
+    document.body.classList.toggle('dark',S.theme==='dark');
+    renderAll();
+  } else {
+    renderStep();
+  }
 }
 
 /* ================= RENDER ================= */
-function renderAll(){ renderHome(); renderProgress(); renderProfile(); }
+function renderAll(){ renderHome(); renderProgress(); renderProfile(); save(); }
 function renderHome(){
   const t=S.target,e=S.eaten,left=Math.max(t.kcal-e.kcal,0);
   $('greet').textContent='Zdravo, '+S.name;
@@ -652,7 +683,7 @@ function renderHome(){
   $('stepsGoal').textContent='/ '+fmt(S.stepGoal)+' koraka';
   $('stepsBar').style.width=Math.min(100,S.steps/S.stepGoal*100)+'%';
   renderMeals();
-  renderWeek(); updateLevelChip(); coachHome();
+  renderWeek(); updateLevelChip(); coachHome(); save();
 }
 function renderMeals(){
   const ml=$('mealList');
@@ -814,6 +845,7 @@ function renderProfile(){
   $('pBadges').innerHTML=`${got}/${S.badges.length} <span>›</span>`;
   $('themeSw').classList.toggle('on',S.theme==='dark');
   if(S.pro) $('proBanner').style.display='none';
+  save();
 }
 
 /* ================= NAV ================= */
@@ -1030,11 +1062,11 @@ function saveCustomFood(){
   S.customFoods[id]={e:($('cfEmoji').value||'🍽️').slice(0,2),name,cat:'moje',unit,
     step:unit==='g'?50:1, def:unit==='g'?100:1,
     per:{kc:+$('cfKc').value||0,p:+$('cfP').value||0,c:+$('cfC').value||0,f:+$('cfF').value||0}};
-  editCFid=null; addCat='moje'; openAdd(S.addSlot); toast(wasEdit?'Izmjene sačuvane ✓':'Namirnica sačuvana ✓');
+  editCFid=null; addCat='moje'; save(); openAdd(S.addSlot); toast(wasEdit?'Izmjene sačuvane ✓':'Namirnica sačuvana ✓');
 }
 function deleteCustomFood(id){
   delete S.customFoods[id]; S.favs=S.favs.filter(k=>k!==id); S.recent=S.recent.filter(r=>r.foodKey!==id);
-  editCFid=null; addCat='moje'; openAdd(S.addSlot); toast('Namirnica obrisana');
+  editCFid=null; addCat='moje'; save(); openAdd(S.addSlot); toast('Namirnica obrisana');
 }
 function reAddRecent(i){ const r=S.recent[i];
   pushMeal({baseName:r.baseName,e:r.e,base:{...r.base},per100:r.per100,unit:r.unit,qty:r.qty,foodKey:r.foodKey,slot:S.addSlot});
@@ -1059,7 +1091,7 @@ function openQty(k){
 function qStep(d){const f=getFood(qKey);qVal=Math.max(f.step,qVal+d*f.step);$('qInput').value=qVal;qUpdate();}
 function qUpdate(fromInput){if(fromInput)qVal=Math.max(0,+$('qInput').value||0);const s=scale(getFood(qKey),qVal);$('qKcal').textContent=s.kc;$('qMacro').textContent=`B ${s.p} · UH ${s.c} · M ${s.f} g`;}
 function qAdd(){const f=getFood(qKey);pushMeal({baseName:f.name,e:f.e,base:f.per,per100:(f.unit==='g'),unit:f.unit,qty:qVal,slot:S.addSlot,foodKey:qKey});closeSheet();}
-function toggleFav(k){ if(S.favs.includes(k))S.favs=S.favs.filter(x=>x!==k); else S.favs.push(k); updateFavBtn(); }
+function toggleFav(k){ if(S.favs.includes(k))S.favs=S.favs.filter(x=>x!==k); else S.favs.push(k); updateFavBtn(); save(); }
 function updateFavBtn(){ const b=$('favBtn'); if(!b)return; const on=S.favs.includes(qKey);
   b.textContent=on?'★ Omiljeno':'☆ Omiljeno'; b.style.color=on?'#f6a723':'var(--muted)'; }
 async function aiAdd(){
@@ -1259,6 +1291,7 @@ function renderTraining(){
       <div style="flex:1"><div class="foc">${d.focus}</div>${d.tag?`<div class="rest">${d.tag}</div>`:''}${d.rest?'<div class="rest">Odmor / regeneracija</div>':''}</div>
       ${d.rest?'<div class="rday">💤</div>':`<div class="chk${S.trainDone[i]?' on':''}" onclick="toggleTrain(${i})">${S.trainDone[i]?'✓':''}</div>`}</div>
       <ul>${d.ex.map(e=>`<li>${e}</li>`).join('')}</ul></div>`).join('');
+  save();
 }
 function toggleTrain(i){ S.trainDone[i]=!S.trainDone[i]; if(S.trainDone[i])awardXp(15); renderTraining(); renderProgress(); }
 
@@ -1376,9 +1409,7 @@ async function coachAsk(q){
 /* ================= PROFIL akcije ================= */
 function toggleTheme(){ S.theme=S.theme==='dark'?'light':'dark'; document.body.classList.toggle('dark',S.theme==='dark'); $('themeSw').classList.toggle('on',S.theme==='dark'); }
 function toggleNotif(){ S.notif=!S.notif; $('notifSw').classList.toggle('on',S.notif); }
-function resetApp(){ obI=0; S.meals=[]; S.eaten={kcal:0,p:0,c:0,f:0};
-  $('main').classList.add('hide'); $('tabbar').classList.add('hide'); $('fab').classList.add('hide');
-  $('onboard').classList.remove('hide'); renderStep(); window.scrollTo(0,0); }
+function resetApp(){ try{ localStorage.removeItem(STORE); }catch(e){} location.reload(); }
 function openEdit(){
   sheet(`<div class="grip"></div><h3>Cilj i podaci</h3>
     <div class="fld"><label>Cilj</label><div class="seg">
@@ -1441,39 +1472,51 @@ function confetti(){
     c.style.opacity=.9; document.body.appendChild(c); setTimeout(()=>c.remove(),3200); }
 }
 
-/* ================= BARKOD SKENER (mock) ================= */
-const PRODUCTS=[
-  {name:'Plazma keks (30 g)',e:'🍪',kc:130,p:2,c:22,f:4},
-  {name:'Bananica (Kraš)',e:'🍫',kc:130,p:1,c:22,f:4},
-  {name:'Eurokrem (kašika)',e:'🍫',kc:110,p:1,c:14,f:5},
-  {name:'Smoki (30 g)',e:'🥜',kc:160,p:4,c:15,f:9},
-  {name:'Jaffa keks (2 kom)',e:'🍪',kc:120,p:1,c:19,f:4},
-  {name:'Najlepše želje (1 kom)',e:'🍫',kc:150,p:2,c:18,f:8},
-  {name:'Nikšićko pivo (0.5 l)',e:'🍺',kc:210,p:2,c:17,f:0},
-  {name:'Cedevita (čaša)',e:'🍊',kc:80,p:0,c:20,f:0},
-  {name:'Next sok (200 ml)',e:'🧃',kc:90,p:0,c:22,f:0},
-  {name:'Rosa voda',e:'💧',kc:0,p:0,c:0,f:0},
-  {name:'Dukat mlijeko (200 ml)',e:'🥛',kc:100,p:7,c:10,f:3},
-  {name:'Activia jogurt',e:'🥛',kc:99,p:5,c:14,f:3},
-  {name:'Grand kafa (šolja)',e:'☕',kc:5,p:0,c:1,f:0},
-  {name:'Milka (2 kocke)',e:'🍫',kc:110,p:1,c:12,f:6},
-  {name:'Coca-Cola (330 ml)',e:'🥤',kc:139,p:0,c:35,f:0}
-];
+/* ================= BARKOD SKENER (pravi: kamera + Open Food Facts) ================= */
+let _scanner=null;
 function openScanner(){
   closeSheet();
   const m=document.createElement('div'); m.className='scanmask'; m.id='scanMask';
-  m.innerHTML=`<div class="cam"><div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div><div class="laser"></div></div>
-    <h3>Skeniranje barkoda…</h3><p>Usmjeri kameru na barkod proizvoda</p>
+  m.innerHTML=`<div id="reader" style="width:88%;max-width:340px;border-radius:18px;overflow:hidden;background:#0f1410"></div>
+    <h3 id="scanTitle">Skeniraj barkod</h3>
+    <p id="scanMsg">Usmjeri kameru na barkod proizvoda</p>
+    <div class="aiwrap" style="width:88%;max-width:340px;margin-top:10px">
+      <input id="manualCode" inputmode="numeric" placeholder="ili unesi broj barkoda">
+      <button onclick="lookupBarcode(document.getElementById('manualCode').value)">Traži</button></div>
     <button class="cancel" onclick="closeScanner()">Otkaži</button>`;
   document.body.appendChild(m);
-  m._t=setTimeout(()=>{
-    const pr=PRODUCTS[Math.floor(S.xp)%PRODUCTS.length]; // deterministički za demo
-    closeScanner();
-    addMeal({name:pr.name,e:pr.e,kc:pr.kc,p:pr.p,c:pr.c,f:pr.f});
-    toast(`✓ ${pr.name} · ${pr.kc} kcal`);
-  },2200);
+  startScan();
 }
-function closeScanner(){ const m=$('scanMask'); if(m){clearTimeout(m._t);m.remove();} }
+function startScan(){
+  if(typeof Html5Qrcode==='undefined'){ $('scanMsg').textContent='Skener se učitava — ako ne krene, unesi broj barkoda ručno.'; return; }
+  try{
+    _scanner=new Html5Qrcode('reader',{ verbose:false, formatsToSupport:[
+      Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.CODE_128 ]});
+    _scanner.start({facingMode:'environment'}, {fps:10, qrbox:{width:260,height:150}},
+      (txt)=>{ lookupBarcode(txt); },
+      ()=>{}
+    ).catch(err=>{ if($('scanMsg'))$('scanMsg').textContent='Kamera nije dostupna. Dozvoli pristup kameri ili unesi broj barkoda ručno.'; });
+  }catch(e){ if($('scanMsg'))$('scanMsg').textContent='Greška skenera — unesi broj barkoda ručno.'; }
+}
+function stopScan(){ if(_scanner){ try{ _scanner.stop().then(()=>{try{_scanner.clear();}catch(e){}}).catch(()=>{}); }catch(e){} _scanner=null; } }
+function closeScanner(){ stopScan(); const m=$('scanMask'); if(m)m.remove(); }
+async function lookupBarcode(code){
+  code=String(code||'').replace(/[^0-9]/g,''); if(!code){ if($('scanMsg'))$('scanMsg').textContent='Unesi ispravan broj barkoda.'; return; }
+  stopScan(); if($('scanMsg'))$('scanMsg').textContent='Tražim proizvod…';
+  try{
+    const r=await fetch('/api/barcode?code='+encodeURIComponent(code));
+    const d=await r.json();
+    closeScanner();
+    if(!d.found){ toast('Proizvod nije u bazi — dodaj ručno ili slikaj'); openAdd(S.addSlot); return; }
+    // sačuvaj kao svoju namirnicu (vrijednosti po 100 g) i otvori izbor količine
+    const id='c'+(++S.customSeq);
+    S.customFoods[id]={e:'🏷️',name:d.name,cat:'moje',unit:'g',step:10,def:100,
+      per:{kc:d.per100g.kcal,p:d.per100g.protein_g,c:d.per100g.carbs_g,f:d.per100g.fat_g}};
+    save(); toast('✓ '+d.name); openQty(id);
+  }catch(e){ if($('scanMsg'))$('scanMsg').textContent='Greška: '+e.message; else toast('Greška pri pretrazi'); }
+}
 
 /* ================= UNOS TEŽINE ================= */
 function openWeight(){
@@ -1521,7 +1564,7 @@ function closeSheet(){const m=$('mask');if(m)m.remove();}
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2000);}
 
 /* ================= INIT ================= */
-renderStep();
+startApp();
 </script>
 </body>
 </html>

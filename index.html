@@ -500,7 +500,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.29 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.30 · demo</p>
     </div>
   </div>
 
@@ -518,7 +518,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
 /* ================= STATE ================= */
 const S = {
   onboarded:false, pro:false, theme:'light', notif:true,
-  name:'Dražen', goal:'lose', sex:'f', age:30, h:170, w:72, tw:66, act:1.375,
+  name:'', goal:'lose', sex:'f', age:30, h:170, w:72, tw:66, act:1.375,
   target:{kcal:0,p:0,c:0,f:0}, eaten:{kcal:0,p:0,c:0,f:0},
   meals:[], water:5, streak:12,
   weights:[73.4,73.0,72.8,72.5,72.3,72.0,72.0], plan:null,
@@ -1922,7 +1922,12 @@ async function sbRefresh(){
     _setSess({access_token:d.access_token,refresh_token:d.refresh_token,email:(d.user&&d.user.email)||s.email}); return true;
   }catch(e){ return false; }
 }
-async function sbLogout(){ try{ await fetch(SB_URL+'/auth/v1/logout',{method:'POST',headers:_ah(true)}); }catch(e){} _setSess(null); renderProfile(); toast('Odjavljen'); }
+async function sbLogout(){
+  try{ await fetch(SB_URL+'/auth/v1/logout',{method:'POST',headers:_ah(true)}); }catch(e){}
+  _setSess(null);
+  try{ localStorage.removeItem(STORE); }catch(e){}   // obriši lokalne podatke prethodnog korisnika
+  location.reload();                                   // vrati na početni ekran (onboarding / prijava)
+}
 
 let _pushT=null,_pushing=false;
 function schedulePush(){ if(!loggedIn()||!navigator.onLine) return; clearTimeout(_pushT); _pushT=setTimeout(cloudPush,1600); }

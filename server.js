@@ -46,7 +46,7 @@ const MANIFEST = JSON.stringify({
     { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }
   ]
 });
-const SW = `const V='ajmo-cache-v1';
+const SW = `const V='ajmo-cache-v2';
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(['/','/index.html'])).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{

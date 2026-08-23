@@ -500,7 +500,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.30 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.31 · demo</p>
     </div>
   </div>
 
@@ -2001,7 +2001,11 @@ async function doAuth(mode){
 window.addEventListener('online',()=>{ if(loggedIn()) cloudPush(); });
 
 /* ================= PWA: instalacija + service worker ================= */
-if('serviceWorker' in navigator){ window.addEventListener('load',()=>{ navigator.serviceWorker.register('/sw.js').catch(()=>{}); }); }
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{ navigator.serviceWorker.register('/sw.js').then(reg=>{ try{reg.update();}catch(e){} }).catch(()=>{}); });
+  let _swReloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(_swReloaded)return; _swReloaded=true; location.reload(); });
+}
 let _deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',(e)=>{ e.preventDefault(); _deferredPrompt=e; showInstallChip(); });
 window.addEventListener('appinstalled',()=>{ _deferredPrompt=null; const c=$('installChip'); if(c) c.remove(); try{toast('Ajmo je instaliran 🎉')}catch(_){} });

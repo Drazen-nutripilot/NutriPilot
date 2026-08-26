@@ -7,6 +7,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,6 +27,9 @@ const API_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = process.env.MODEL || 'claude-haiku-4-5'; // jeftin i brz (tekst, trener, plan)
 const VISION_MODEL = process.env.VISION_MODEL || 'claude-sonnet-4-6'; // jači model za slike (bolje vidi hranu)
 const PORT = process.env.PORT || 3000;
+const LS_WEBHOOK_SECRET = process.env.LS_WEBHOOK_SECRET || '';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://xqilhefgmygylpnkzqjd.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 const PUBLIC = __dirname; // servira iz korijena (nema potrebe za public/ folderom)
 
 /* ---------- PWA: ikone (base64), manifest i service worker generisani iz servera ---------- */
@@ -326,6 +330,38 @@ function readBody(req) {
   });
 }
 
+/* ---------- Lemon Squeezy webhook (otključava Pro) ---------- */
+function readRaw(req){ return new Promise((resolve)=>{ let d=''; req.on('data',(c)=>d+=c); req.on('end',()=>resolve(d)); }); }
+async function sbAdmin(pathq, method, body){
+  const headers={ 'apikey':SUPABASE_SERVICE_KEY, 'Authorization':'Bearer '+SUPABASE_SERVICE_KEY, 'Content-Type':'application/json' };
+  if(method==='POST') headers['Prefer']='resolution=merge-duplicates,return=minimal';
+  return fetch(SUPABASE_URL+'/rest/v1/'+pathq, { method, headers, body: body?JSON.stringify(body):undefined });
+}
+async function handleLsWebhook(req, res){
+  const raw = await readRaw(req);
+  try{
+    const sig = req.headers['x-signature'] || '';
+    if(LS_WEBHOOK_SECRET){
+      const digest = crypto.createHmac('sha256', LS_WEBHOOK_SECRET).update(raw).digest('hex');
+      const a = Buffer.from(digest), b = Buffer.from(String(sig));
+      if(a.length!==b.length || !crypto.timingSafeEqual(a,b)){ res.writeHead(401); return res.end('bad signature'); }
+    } else { console.warn('LS_WEBHOOK_SECRET nije postavljen — preskačem provjeru potpisa'); }
+  }catch(e){ res.writeHead(401); return res.end('sig error'); }
+  let payload={}; try{ payload=JSON.parse(raw||'{}'); }catch(e){}
+  try{
+    const event = (payload && payload.meta && payload.meta.event_name) || '';
+    const attr = (payload && payload.data && payload.data.attributes) || {};
+    const custom = (payload && payload.meta && payload.meta.custom_data) || {};
+    const email = String(attr.user_email || custom.email || '').toLowerCase();
+    const status = attr.status || ''; // active, on_trial, past_due, paused, unpaid, cancelled, expired
+    const active = event.indexOf('subscription_')===0 ? ['active','on_trial','past_due'].includes(status) : false;
+    if(email && SUPABASE_SERVICE_KEY){
+      await sbAdmin('pro_users?on_conflict=email', 'POST', [{ email, active, updated_at: new Date().toISOString() }]);
+    }
+    res.writeHead(200, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ ok:true }));
+  }catch(e){ console.error('LS webhook err:', e && e.message || e); res.writeHead(200); return res.end('ok'); }
+}
+
 /* ---------- server ---------- */
 http.createServer(async (req, res) => {
   try {
@@ -336,6 +372,7 @@ http.createServer(async (req, res) => {
       const code = new URL(req.url, 'http://x').searchParams.get('code');
       return handleBarcode(code, res);
     }
+    if (req.method === 'POST' && req.url.startsWith('/api/ls-webhook')) return handleLsWebhook(req, res);
     if (req.method === 'POST' && req.url.startsWith('/api/estimate')) return handleEstimate(await readBody(req), res);
     if (req.method === 'POST' && req.url.startsWith('/api/plan')) return handlePlan(await readBody(req), res);
     if (req.method === 'POST' && req.url.startsWith('/api/coach')) return handleCoach(await readBody(req), res);

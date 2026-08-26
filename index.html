@@ -501,7 +501,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.33 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.34 · demo</p>
     </div>
   </div>
 
@@ -616,7 +616,10 @@ function projSvg(p){
     <text x="${X(n-1).toFixed(1)}" y="${(Y(pts[n-1])-12).toFixed(1)}" font-size="14" font-weight="800" fill="#12a05e" text-anchor="end">${tw} kg</text>
   </svg>`;
 }
-function payHook(){ try{toast('Pretplata stiže uskoro — zasad kreni besplatno 🎉');}catch(e){}; finishOnboard(); }
+function payHook(){
+  if(!loggedIn()){ requireAuth(()=>{ _completeOnboard(); startCheckout(); }); return; }
+  _completeOnboard(); startCheckout();
+}
 
 const STEPS=[
   // 0 welcome (wow intro)
@@ -848,7 +851,7 @@ function startApp(){
   if(loggedIn() && S.onboarded){ revealApp(); renderAll(); }
   else { renderStep(); }  // bez naloga (ili neonboardovan) -> onboarding / prijava, NE ulazi u app
   // ako postoji sesija -> osvježi token i povuci podatke iz oblaka (best-effort)
-  if(loggedIn()){ sbRefresh().then(()=>cloudPull().then(()=>{ if(S.onboarded){ revealApp(); renderAll(); } })); }
+  if(loggedIn()){ sbRefresh().then(()=>cloudPull().then(()=>{ if(S.onboarded){ revealApp(); renderAll(); } checkProStatus(); })); }
 }
 
 /* ================= RENDER ================= */
@@ -1938,7 +1941,7 @@ function saveWeight(){
 /* ================= PAYWALL ================= */
 let selPlan='year';
 function openPaywall(){
-  dialog(`<span class="tag">7 DANA BESPLATNO · –60%</span>
+  dialog(`<span class="tag">3 DANA BESPLATNO</span>
     <div style="font-size:36px;margin-top:4px">✦</div>
     <h3 style="margin-top:6px">Ajmo Pro</h3>
     <div class="feat">
@@ -1948,16 +1951,16 @@ function openPaywall(){
       <div><span class="ck">✓</span> Bez reklama, sinhronizacija uređaja</div></div>
     <div class="plans" id="plans">
       <div class="plan sel" data-p="year" onclick="pickPlan('year')"><div class="rd"></div>
-        <div><div class="pn">Godišnje</div><div class="pd">39,99€/god</div></div>
-        <div class="pp"><b>3,33€</b><span>/ mjesec</span></div></div>
+        <div><div class="pn">Godišnje</div><div class="pd">22,99€/god</div></div>
+        <div class="pp"><b>1,90€</b><span>/ mjesec</span></div></div>
       <div class="plan" data-p="month" onclick="pickPlan('month')"><div class="rd"></div>
         <div><div class="pn">Mjesečno</div><div class="pd">Otkaži bilo kada</div></div>
-        <div class="pp"><b>8,99€</b><span>/ mjesec</span></div></div></div>
-    <button class="buy" onclick="buyPro()">Počni 7 dana besplatno</button>
-    <p class="tiny">Demo — nema naplate. Ovdje ide Stripe/Paddle checkout.</p>`,true);
+        <div class="pp"><b>3,99€</b><span>/ mjesec</span></div></div></div>
+    <button class="buy" onclick="buyPro()">Počni 3 dana besplatno</button>
+    <p class="tiny">Naplatu bezbjedno obrađuje Lemon Squeezy · otkaži bilo kad.</p>`,true);
 }
 function pickPlan(p){selPlan=p;document.querySelectorAll('#plans .plan').forEach(el=>el.classList.toggle('sel',el.dataset.p===p));}
-function buyPro(){S.pro=true;closeSheet();renderProfile();renderProgress();toast('🎉 Dobrodošao u Pro!');}
+function buyPro(){ closeSheet(); if(!loggedIn()){ requireAuth(startCheckout); return; } startCheckout(); }
 
 /* ================= SHEET/DIALOG ================= */
 function sheet(html){overlay(`<div class="sheet"><div class="grip"></div><button class="close" onclick="closeSheet()">✕</button>${html}</div>`);}
@@ -2079,6 +2082,29 @@ async function doAuth(mode){
   }catch(e){ if(err){ err.style.color='#d3543f'; err.textContent=e.message||'Greška. Provjeri internet.'; } }
 }
 window.addEventListener('online',()=>{ if(loggedIn()) cloudPush(); });
+
+/* ---- Lemon Squeezy pretplata ---- */
+const LS_CHECKOUT='https://ajmo.lemonsqueezy.com/checkout/buy/658829cf-9a4e-48c1-aa9c-089cfaa5c9d8';
+function startCheckout(){
+  const email=(_sess()||{}).email||'';
+  const sep = LS_CHECKOUT.includes('?')?'&':'?';
+  const url = LS_CHECKOUT + sep + 'checkout[email]='+encodeURIComponent(email) + '&checkout[custom][email]='+encodeURIComponent(email);
+  location.href=url;
+}
+async function checkProStatus(){
+  if(!loggedIn()) return;
+  try{
+    const email=(_sess()||{}).email||'';
+    const q=SB_URL+'/rest/v1/pro_users?select=active&email=eq.'+encodeURIComponent(email);
+    let r=await fetch(q,{headers:_ah(true)});
+    if(r.status===401 && await sbRefresh()) r=await fetch(q,{headers:_ah(true)});
+    if(!r.ok) return;
+    const arr=await r.json().catch(()=>[]);
+    const active = Array.isArray(arr)&&arr[0]&&arr[0].active===true;
+    if(!!active!==!!S.pro){ S.pro=!!active; save(); try{renderProfile();renderProgress();}catch(e){} }
+  }catch(e){}
+}
+window.addEventListener('focus',()=>{ if(loggedIn()) checkProStatus(); });
 
 /* ================= PWA: instalacija + service worker ================= */
 if('serviceWorker' in navigator){

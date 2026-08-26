@@ -116,8 +116,20 @@ const FOOD_TOOL = {
   }
 };
 
+/* Jezik: zaključaj na crnogorski/srpski (ijekavica) i zabrani hrvatske riječi. */
+const LANG_RULES = [
+  'JEZIK JE OBAVEZAN: piši isključivo na crnogorskom/srpskom jeziku, ijekavica (kako se govori u Crnoj Gori). NIKAD engleski, NIKAD hrvatski.',
+  'NE koristi hrvatske riječi. Umjesto njih koristi:',
+  'hljeb (ne „kruh“), sedmica (ne „tjedan“), kašika (ne „žlica“), viljuška (ne „vilica“), supa ili čorba (ne „juha“),',
+  'pasulj (ne „grah“), naut (ne „slanutak“), šargarepa (ne „mrkva“), paradajz (ne „rajčica“), spanać (ne „špinat“),',
+  'krompir (ne „krumpir“), pasta ili testenina (ne „tjestenina“), sirće (ne „ocat“), pavlaka (ne „vrhnje“),',
+  'narandža (ne „naranča“), pirinač ili riža, kuvati (ne „kuhati“), činija (ne „zdjela“), pečurke (ne „gljive“ ako može).',
+  'Koristi ijekavicu (mlijeko, bijelo, sjeme, dvije, brašno). Nazivi jela i sastojci moraju zvučati domaće, kao na Balkanu.'
+].join(' ');
+
 const SYSTEM_FOOD = [
   'Ti si iskusan nutricionista i procjenjuješ kalorije i makronutrijente iz OPISA ili SLIKE obroka.',
+  LANG_RULES,
   'Uvijek koristi alat log_food. Uvijek odgovaraj na CRNOGORSKOM/SRPSKOM jeziku (ijekavica), prirodno i kratko — NIKAD na engleskom.',
   'Za SLIKU: prepoznaj SVA jela i namirnice na tanjiru (ne preskači priloge, sos, hljeb).',
   'Ako ima VIŠE komada iste namirnice (npr. 3 parčeta paprike), procijeni UKUPNU količinu za sve komade ZAJEDNO (npr. ~150 g ukupno), a NIKAKO svaki komad kao cijelu namirnicu.',
@@ -247,7 +259,7 @@ async function handleRecipe(reqBody, res) {
   const data = await anthropic({
     model: MODEL,
     max_tokens: 700,
-    system: 'Ti si topao domaći kuvar. Recepti su jednostavni, jasni i praktični. Piši na jeziku korisnika (crnogorski/srpski, ijekavica).',
+    system: 'Ti si topao domaći kuvar. Recepti su jednostavni, jasni i praktični. ' + LANG_RULES,
     tools: [RECIPE_TOOL],
     tool_choice: { type: 'tool', name: 'recipe' },
     messages: [{ role: 'user', content: prompt }]
@@ -283,7 +295,7 @@ async function handlePlan(reqBody, res) {
   const data = await anthropic({
     model: MODEL,
     max_tokens: 1500,
-    system: 'Ti si nutricionista koji pravi realne, ukusne i uravnotežene planove obroka. Odgovaraj na jeziku korisnika (srpski/crnogorski).',
+    system: 'Ti si nutricionista koji pravi realne, ukusne i uravnotežene planove obroka. ' + LANG_RULES,
     tools: [PLAN_TOOL],
     tool_choice: { type: 'tool', name: 'meal_plan' },
     messages: [{ role: 'user', content: prompt }]
@@ -319,7 +331,7 @@ async function handleCoach(reqBody, res) {
     model: MODEL,
     max_tokens: 300,
     system:
-      'Ti si topao, motivišući AI trener za ishranu. Odgovaraj kratko (2–4 rečenice), praktično i na jeziku korisnika (srpski/crnogorski). Bez medicinskih tvrdnji; za ozbiljna zdravstvena pitanja preporuči stručnjaka.',
+      'Ti si topao, motivišući AI trener za ishranu. Odgovaraj kratko (2–4 rečenice), praktično. Bez medicinskih tvrdnji; za ozbiljna zdravstvena pitanja preporuči stručnjaka. ' + LANG_RULES,
     messages: [{ role: 'user', content: `${ctx}\n\nPitanje: ${question}` }]
   });
 

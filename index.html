@@ -505,7 +505,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.38 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.39 · demo</p>
     </div>
   </div>
 
@@ -1257,7 +1257,7 @@ const FOODS={
   djuvec:{e:'🍲',name:'Đuveč',cat:'domaće',unit:'porcija',step:1,def:1,per:{kc:300,p:14,c:30,f:12}},
   punjene:{e:'🫑',name:'Punjene paprike',cat:'domaće',unit:'porcija',step:1,def:1,per:{kc:250,p:12,c:20,f:13}},
   prebranac:{e:'🫘',name:'Prebranac / pasulj',cat:'domaće',unit:'porcija',step:1,def:1,per:{kc:300,p:14,c:40,f:9}},
-  grahkobasica:{e:'🌭',name:'Grah sa kobasicom',cat:'domaće',unit:'porcija',step:1,def:1,per:{kc:420,p:20,c:35,f:22}},
+  grahkobasica:{e:'🌭',name:'Pasulj sa kobasicom',cat:'domaće',unit:'porcija',step:1,def:1,per:{kc:420,p:20,c:35,f:22}},
   gulas:{e:'🍲',name:'Gulaš',cat:'domaće',unit:'porcija',step:1,def:1,per:{kc:320,p:25,c:12,f:18}},
   paprikas:{e:'🍲',name:'Pileći paprikaš',cat:'domaće',unit:'porcija',step:1,def:1,per:{kc:300,p:24,c:14,f:16}},
   kacamak:{e:'🌽',name:'Kačamak',cat:'domaće',unit:'porcija',step:1,def:1,per:{kc:350,p:8,c:45,f:15}},
@@ -1797,7 +1797,7 @@ const MEAL_POOLS={
       M('Bijela riba sa blitvom','🐟',420,38,28,14,ING(['Oslić','180 g'],['Blitva','150 g'],['Krompir','120 g']),'Riba uz blitvu sa krompirom (dalmatinski).'),
       M('Ćuftice od ćuretine u sosu','🍅',410,40,18,16,ING(['Mljevena ćuretina','150 g'],['Paradajz sos','120 g']),'Ćuftice od ćuretine u paradajz sosu.'),
       M('Pileća čorba sa povrćem','🍲',300,30,20,8,ING(['Pileće meso','120 g'],['Šargarepa','80 g'],['Celer','40 g']),'Bistra pileća čorba sa povrćem.'),
-      M('Grah sa dimljenom ćuretinom','🫘',430,32,45,10,ING(['Pasulj','150 g'],['Dimljena ćuretina','60 g']),'Lagani grah sa dimljenom ćuretinom.'),
+      M('Pasulj sa dimljenom ćuretinom','🫘',430,32,45,10,ING(['Pasulj','150 g'],['Dimljena ćuretina','60 g']),'Lagani pasulj sa dimljenom ćuretinom.'),
       M('Salata sa tunom i jajetom','🥗',400,36,14,20,ING(['Tuna','120 g'],['Jaje','1 kom'],['Zelena salata','150 g']),'Salata sa tunom i jajetom.'),
       M('Punjene tikvice sa piletinom','🥒',420,40,20,16,ING(['Tikvice','2 kom'],['Mljevena piletina','130 g']),'Tikvice punjene piletinom.'),
       M('Pileći wok sa povrćem','🥦',430,42,25,15,ING(['Pileća prsa','160 g'],['Brokoli','100 g'],['Paprika','80 g'],['Soja sos','1 kašika']),'Piletina i povrće na brzo u voku.')],
@@ -1861,7 +1861,7 @@ const MEAL_POOLS={
       M('Riblja čorba i riba','🐟',520,38,30,22,ING(['Riba','160 g'],['Krompir','120 g'],['Šargarepa','60 g']),'Riblja čorba sa komadom ribe.'),
       M('Ćureći ražnjići sa pirinčem','🍢',560,42,55,16,ING(['Ćureći file','160 g'],['Pirinač','150 g']),'Ražnjići od ćuretine uz pirinač.'),
       M('Špagete sa piletinom','🍝',570,36,60,18,ING(['Špagete','120 g'],['Piletina','120 g'],['Paradajz sos','100 g']),'Špagete sa piletinom u sosu.'),
-      M('Grah sa rebrima','🫘',580,30,50,26,ING(['Pasulj','200 g'],['Suva rebra','60 g']),'Grah sa dimljenim rebrima.'),
+      M('Pasulj sa rebrima','🫘',580,30,50,26,ING(['Pasulj','200 g'],['Suva rebra','60 g']),'Pasulj sa dimljenim rebrima.'),
       M('Pileći rižoto sa povrćem','🍚',560,36,58,16,ING(['Piletina','140 g'],['Pirinač','120 g'],['Grašak','60 g']),'Rižoto sa piletinom i povrćem.')],
     'Večera':[
       M('Losos i kuvani krompir','🐟',520,36,34,26,ING(['Losos','150 g'],['Mladi krompir','200 g'],['Povrće','120 g']),'Losos iz rerne uz krompir i povrće.'),
@@ -1911,7 +1911,7 @@ const MEAL_POOLS={
       M('Bademi, orasi i suvo voće','🥜',460,14,35,30,ING(['Bademi','20 g'],['Orasi','20 g'],['Suvo voće','30 g']),'Mješavina orašastih i suvog voća.'),
       M('Mliječni shake sa ovsom i medom','🥤',480,28,55,16,ING(['Mlijeko','300 ml'],['Ovsene pahuljice','40 g'],['Med','1 kašika']),'Kremasti mliječni shake.')],
     'Ručak':[
-      M('Junetina, pirinač i grah','🥩',780,52,80,24,ING(['Junetina','180 g'],['Pirinač (kuvan)','200 g'],['Grah','100 g']),'Junetina uz pirinač i grah.'),
+      M('Junetina, pirinač i pasulj','🥩',780,52,80,24,ING(['Junetina','180 g'],['Pirinač (kuvan)','200 g'],['Pasulj','100 g']),'Junetina uz pirinač i pasulj.'),
       M('Piletina, testenina i sir','🍝',750,50,75,22,ING(['Piletina','180 g'],['Testenina','150 g'],['Sir','30 g']),'Piletina sa testeninom i sirom.'),
       M('Ćevapi sa lepinjom i kajmakom','🍢',800,40,55,40,ING(['Ćevapi','10 kom'],['Lepinja','1 kom'],['Kajmak','1 kašika']),'Ćevapi u lepinji sa kajmakom.'),
       M('Karađorđeva sa pomfritom','🍖',900,45,50,55,ING(['Karađorđeva','1 kom'],['Pomfrit','150 g']),'Karađorđeva šnicla uz pomfrit.'),
@@ -1931,7 +1931,7 @@ const MEAL_POOLS={
       M('Musaka sa jogurtom','🍲',650,34,40,38,ING(['Musaka','1.5 porcije'],['Grčki jogurt','100 g']),'Veća porcija musake uz jogurt.'),
       M('Juneći burger sa pomfritom','🍔',820,40,60,45,ING(['Pljeskavica','1 kom'],['Lepinja','1 kom'],['Pomfrit','120 g']),'Domaći burger sa pomfritom.'),
       M('Biftek sa krompirom','🥩',780,50,45,42,ING(['Biftek','200 g'],['Krompir','250 g'],['Puter','1 kašika']),'Biftek uz pečeni krompir.'),
-      M('Piletina, riža i grah','🍗',760,50,70,26,ING(['Piletina','180 g'],['Riža','150 g'],['Grah','100 g']),'Piletina uz rižu i grah.'),
+      M('Piletina, riža i pasulj','🍗',760,50,70,26,ING(['Piletina','180 g'],['Riža','150 g'],['Pasulj','100 g']),'Piletina uz rižu i pasulj.'),
       M('Testenina karbonara','🍝',780,32,75,36,ING(['Testenina','150 g'],['Jaje','1 kom'],['Slanina','40 g'],['Parmezan','30 g']),'Kremasta karbonara.'),
       M('Ćevapi sa lepinjom i kajmakom','🍢',820,42,55,44,ING(['Ćevapi','10 kom'],['Lepinja','1 kom'],['Kajmak','1 kašika']),'Ćevapi u lepinji sa kajmakom.'),
       M('Riba, krompir i maslinovo ulje','🐟',720,44,45,34,ING(['Riba','200 g'],['Krompir','250 g'],['Maslinovo ulje','1 kašika']),'Riba uz krompir prelivena uljem.'),
@@ -1963,7 +1963,7 @@ const MEAL_POOLS={
       M('Humus sa štapićima povrća','🥕',150,5,16,7,ING(['Humus','2 kašike'],['Šargarepa','100 g']),'Humus uz svježe povrće.'),
       M('Šaka oraha','🌰',180,4,4,17,ING(['Orasi','25 g']),'Šaka domaćih oraha.'),
       M('Suvo voće i orasi','🍇',200,4,28,9,ING(['Suvo voće','30 g'],['Orasi','15 g']),'Mješavina suvog voća i oraha.'),
-      M('Slanutak grickalica','🫛',160,8,18,6,ING(['Pečeni slanutak','40 g']),'Hrskavi pečeni slanutak.'),
+      M('Naut grickalica','🫛',160,8,18,6,ING(['Pečeni naut','40 g']),'Hrskavi pečeni naut.'),
       M('Pečeni lješnici','🌰',170,4,5,15,ING(['Lješnici','25 g']),'Šaka lješnika.'),
       M('Voćni smuti','🥤',170,2,38,1,ING(['Voće','200 g'],['Voda','100 ml']),'Osvježavajući voćni smuti (posno).'),
       M('Krekeri sa ajvarom','🍅',180,4,26,7,ING(['Integralni krekeri','40 g'],['Ajvar','1 kašika']),'Krekeri sa ajvarom.'),
@@ -1983,7 +1983,7 @@ const MEAL_POOLS={
       M('Rižoto sa povrćem','🍚',460,10,70,12,ING(['Pirinač','120 g'],['Miješano povrće','150 g']),'Posni rižoto sa povrćem.'),
       M('Posna musaka od krompira','🥔',450,10,55,20,ING(['Krompir','300 g'],['Luk','1 kom'],['Ulje','2 kašike']),'Musaka od krompira bez mesa.'),
       M('Đuveč od povrća','🍲',400,9,55,14,ING(['Miješano povrće','250 g'],['Pirinač','60 g']),'Đuveč od sezonskog povrća.'),
-      M('Slanutak sa spanaćem','🫛',470,18,55,16,ING(['Slanutak','150 g'],['Spanać','100 g'],['Začini','po ukusu']),'Curry od slanutka i spanaća.'),
+      M('Naut sa spanaćem','🫛',470,18,55,16,ING(['Naut','150 g'],['Spanać','100 g'],['Začini','po ukusu']),'Curry od nauta i spanaća.'),
       M('Punjene tikvice sa pirinčem','🥒',410,9,55,14,ING(['Tikvice','2 kom'],['Pirinač','120 g']),'Tikvice punjene pirinčem (posno).'),
       M('Salata od pasulja sa lukom','🫘',420,18,50,12,ING(['Pasulj (kuvani)','200 g'],['Crveni luk','1/2 kom'],['Ulje','1 kašika']),'Hladna salata od pasulja.'),
       M('Bulgur sa povrćem','🌾',440,12,65,10,ING(['Bulgur','120 g'],['Miješano povrće','150 g']),'Bulgur sa dinstanim povrćem.')],
@@ -1993,7 +1993,7 @@ const MEAL_POOLS={
       M('Šopska salata bez sira','🥗',220,6,20,12,ING(['Paradajz','150 g'],['Krastavac','100 g'],['Maslinovo ulje','1 kašika']),'Svježa šopska bez sira (posno).'),
       M('Minestrone supa','🍲',300,12,45,7,ING(['Pasulj','80 g'],['Povrće','150 g'],['Testenina','40 g']),'Gusta minestrone supa.'),
       M('Pečeni krompir sa povrćem','🥔',360,8,55,12,ING(['Krompir','250 g'],['Paprika','100 g'],['Maslinovo ulje','1 kašika']),'Krompir i povrće iz rerne.'),
-      M('Salata od slanutka i povrća','🫛',350,14,40,12,ING(['Slanutak','150 g'],['Paradajz','100 g'],['Krastavac','80 g']),'Hranljiva salata od slanutka.'),
+      M('Salata od nauta i povrća','🫛',350,14,40,12,ING(['Naut','150 g'],['Paradajz','100 g'],['Krastavac','80 g']),'Hranljiva salata od nauta.'),
       M('Punjene tikvice povrćem','🥒',320,8,35,14,ING(['Tikvice','2 kom'],['Miješano povrće','120 g']),'Tikvice punjene povrćem.'),
       M('Đuveč od povrća','🍲',340,9,45,12,ING(['Miješano povrće','250 g'],['Pirinač','50 g']),'Lagani povrtni đuveč.'),
       M('Pirjano povrće sa tofuom','🍲',360,20,25,16,ING(['Tofu','150 g'],['Miješano povrće','150 g'],['Soja sos','1 kašika']),'Tofu i povrće u voku (posni protein).'),

@@ -501,7 +501,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.32 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.33 · demo</p>
     </div>
   </div>
 
@@ -569,6 +569,54 @@ function calcPlan(){
 let obI=0;
 const GOALS={lose:{ic:'📉',t:'Smršati',d:'Izgubi kilograme zdravo'},maintain:{ic:'⚖️',t:'Održati',d:'Zadrži trenutnu težinu'},gain:{ic:'💪',t:'Dobiti mišiće',d:'Povećaj masu i snagu'}};
 const ACTS=[['1.2','Sjedeći način života'],['1.375','Lagano aktivan (1–3x/nedjelja)'],['1.55','Umjereno (3–5x)'],['1.725','Vrlo aktivan (6–7x)']];
+
+/* ---- čist start za novog korisnika (bez demo statistike) ---- */
+function resetForNewUser(){
+  const w=+(S.w||70);
+  S.streak=0; S.water=0; S.steps=0;
+  S.weekKcal=[0,0,0,0,0,0,0]; S.week=[0,0,0,0,0,0,2];
+  S.xp=0; S.level=1;
+  S.meals=[]; S.eaten={kcal:0,p:0,c:0,f:0};
+  if(Array.isArray(S.badges)) S.badges.forEach(b=>{ b.got=false; });
+  S.trainDone={}; S.trainWeek=0;
+  S.weights=[w,w,w,w,w,w,w];
+  S.weights30=Array.from({length:30},()=>w);
+  S.monthKcal=[];
+  S.mealRecent={}; S.mealBags={};
+}
+/* ---- projekcija do cilja ---- */
+function projInfo(){
+  let w=+S.w||70, goal=S.goal, tw=+S.tw;
+  if(goal==='lose'){ if(!tw||tw>=w) tw=Math.max(45,Math.round(w-5)); }
+  else if(goal==='gain'){ if(!tw||tw<=w) tw=Math.round(w+4); }
+  else { tw=w; }
+  S.tw=tw;
+  const rate = goal==='gain'?0.30:0.5;
+  let weeks,dir;
+  if(goal==='maintain' || Math.abs(w-tw)<0.5){ weeks=8; dir='maintain'; }
+  else { weeks=Math.max(2,Math.ceil(Math.abs(w-tw)/rate)); dir = w>tw?'down':'up'; }
+  return {w,tw,weeks,dir};
+}
+function projDateStr(weeks){ const d=new Date(); d.setDate(d.getDate()+weeks*7); try{return d.toLocaleDateString('sr-Latn',{day:'numeric',month:'long'});}catch(e){return weeks+' ned.';} }
+function projSvg(p){
+  const w=p.w, tw=p.tw, n=6, pts=[];
+  for(let i=0;i<n;i++){ const t=i/(n-1); pts.push(p.dir==='maintain'? w : (w+(tw-w)*t)); }
+  const vmin=Math.min(w,tw)-0.6, vmax=Math.max(w,tw)+0.6, W=320,H=150,pad=26;
+  const X=i=> pad + i/(n-1)*(W-2*pad);
+  const Y=v=> pad + (1-(v-vmin)/((vmax-vmin)||1))*(H-2*pad);
+  const line=pts.map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join(' ');
+  const area=`${line} L${X(n-1).toFixed(1)} ${H-pad} L${X(0).toFixed(1)} ${H-pad} Z`;
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="max-width:340px">
+    <defs><linearGradient id="pgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9a4d" stop-opacity=".35"/><stop offset="1" stop-color="#ff5a3c" stop-opacity="0"/></linearGradient></defs>
+    <path d="${area}" fill="url(#pgrad)"/>
+    <path d="${line}" fill="none" stroke="#ff5a3c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${X(0).toFixed(1)}" cy="${Y(w).toFixed(1)}" r="5" fill="#ff5a3c"/>
+    <circle cx="${X(n-1).toFixed(1)}" cy="${Y(pts[n-1]).toFixed(1)}" r="6" fill="#12a05e"/>
+    <text x="${X(0).toFixed(1)}" y="${(Y(w)-10).toFixed(1)}" font-size="13" font-weight="800" fill="#8a938d" text-anchor="start">${w} kg</text>
+    <text x="${X(n-1).toFixed(1)}" y="${(Y(pts[n-1])-12).toFixed(1)}" font-size="14" font-weight="800" fill="#12a05e" text-anchor="end">${tw} kg</text>
+  </svg>`;
+}
+function payHook(){ try{toast('Pretplata stiže uskoro — zasad kreni besplatno 🎉');}catch(e){}; finishOnboard(); }
 
 const STEPS=[
   // 0 welcome (wow intro)
@@ -660,7 +708,31 @@ const STEPS=[
       <div class="m"><b>${S.target.c}g</b><span>Ugljeni h.</span></div>
       <div class="m"><b>${S.target.f}g</b><span>Masti</span></div></div>
     <p class="sub" style="margin-top:20px">Sve možeš promijeniti kasnije u profilu.</p>
-    <button class="cta" onclick="finishOnboard()">Kreni 🚀</button></div>`
+    <button class="cta" onclick="obNext()">Vidi moju projekciju →</button></div>`,
+  // 7 projekcija do cilja
+  ()=>{ const p=projInfo(); const dateS=projDateStr(p.weeks);
+    const head = p.dir==='maintain' ? 'Održaćeš svoju formu' : `Stižeš do ${p.tw} kg`;
+    const sub = p.dir==='maintain' ? 'Uz Ajmo održavaš cilj i naviku.' : ('Procjena: oko <b style="color:var(--green2)">'+dateS+'</b> · ~'+p.weeks+' nedjelja');
+    const rateTxt = p.dir==='down'?'~0.5 kg sedmično, bez gladovanja':p.dir==='up'?'~0.3 kg sedmično čiste mase':'stabilna težina uz balans';
+    return `<div class="step" style="text-align:center">
+    <p class="sub" style="margin-bottom:2px">Tvoja projekcija</p>
+    <h1 style="margin:2px 0">${head}</h1>
+    <p class="sub" style="margin-top:0">${sub}</p>
+    <div style="margin:12px 0">${projSvg(p)}</div>
+    <div class="pcard" style="text-align:left;margin:0"><div class="av">🔥</div><div><h3 style="margin:0;font-size:15px">Realno i održivo</h3><p style="margin:0;color:var(--muted);font-size:13px">${rateTxt}</p></div></div>
+    <button class="cta" style="margin-top:16px" onclick="obNext()">Nastavi →</button></div>`; },
+  // 8 paywall
+  ()=>`<div class="step" style="text-align:center">
+    <div style="font-size:34px">✦</div>
+    <h1 style="margin:6px 0 2px">Otključaj Ajmo Pro</h1>
+    <p class="sub" style="margin-top:0">Sve što ti treba da stigneš do cilja — na našem jeziku.</p>
+    <div style="text-align:left;background:var(--card2);border-radius:16px;padding:14px 18px;margin:12px 0">
+      ${['Neograničeno slikanje obroka (AI)','Detaljni planovi ishrane + posni set','Planovi treninga po cilju i polu','Napredna analiza i projekcija do cilja','Bez reklama'].map(f=>`<div style="display:flex;gap:10px;align-items:flex-start;margin:9px 0"><span style="color:var(--green2);font-weight:800">✓</span><span style="font-size:14px">${f}</span></div>`).join('')}
+    </div>
+    <div style="font-weight:800;font-size:20px">€22.99 <span style="color:var(--muted);font-weight:600;font-size:14px">/ godišnje (≈ €1.9/mj)</span></div>
+    <p class="sub" style="margin:4px 0 12px">Počni sa <b>3 dana besplatno</b> — otkaži bilo kad.</p>
+    <button class="cta" onclick="payHook()">Počni — 3 dana besplatno</button>
+    <div style="margin-top:12px"><a onclick="finishOnboard()" style="color:var(--muted);font-size:13px;cursor:pointer">Nastavi sa besplatnom verzijom</a></div></div>`
 ];
 function renderStep(){
   $('obStep').innerHTML=STEPS[obI]();
@@ -748,6 +820,7 @@ function finishOnboard(){
 }
 function _completeOnboard(){
   S.onboarded=true; S.lastDate=todayStr();
+  resetForNewUser();
   revealApp(); renderAll(); save();
   if(loggedIn()) cloudPush();
 }

@@ -496,11 +496,12 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem" onclick="toggleNotif()"><div class="ic">🔔</div><div class="lb">Podsjetnici</div><div class="rt"><div class="sw on" id="notifSw"></div></div></div>
       </div>
       <div class="plist">
+        <div class="pitem" onclick="openInstall()"><div class="ic">📲</div><div class="lb">Instaliraj na telefon</div><div class="rt">›</div></div>
         <div class="pitem"><div class="ic">⭐</div><div class="lb">Ocijeni aplikaciju</div><div class="rt">›</div></div>
         <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.31 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.32 · demo</p>
     </div>
   </div>
 
@@ -739,12 +740,16 @@ function computeAndReveal(){
   calcPlan(); obI=5; renderStep();
   setTimeout(()=>{ obI=6; renderStep(); },1400);
 }
+let _authCb=null;
+function requireAuth(cb){ _authCb=cb; openAuth(); }
 function finishOnboard(){
+  if(!loggedIn()){ requireAuth(_completeOnboard); return; }  // NALOG OBAVEZAN
+  _completeOnboard();
+}
+function _completeOnboard(){
   S.onboarded=true; S.lastDate=todayStr();
-  $('onboard').classList.add('hide');
-  $('main').classList.remove('hide'); $('tabbar').classList.remove('hide'); $('fab').classList.remove('hide');
-  document.body.classList.toggle('dark',S.theme==='dark');
-  renderAll(); save();
+  revealApp(); renderAll(); save();
+  if(loggedIn()) cloudPush();
 }
 
 /* ================= PAMĆENJE (localStorage) ================= */
@@ -766,8 +771,9 @@ function load(){
   }catch(e){ return false; }
 }
 function startApp(){
-  if(load()){ revealApp(); renderAll(); }
-  else { renderStep(); }
+  load(); // učitaj lokalne postavke (tema itd.)
+  if(loggedIn() && S.onboarded){ revealApp(); renderAll(); }
+  else { renderStep(); }  // bez naloga (ili neonboardovan) -> onboarding / prijava, NE ulazi u app
   // ako postoji sesija -> osvježi token i povuci podatke iz oblaka (best-effort)
   if(loggedIn()){ sbRefresh().then(()=>cloudPull().then(()=>{ if(S.onboarded){ revealApp(); renderAll(); } })); }
 }
@@ -1994,8 +2000,9 @@ async function doAuth(mode){
     }
     else { await sbLogin(email,pw); }
     await cloudPull();
-    if(S.onboarded) revealApp();
-    closeSheet(); renderProfile(); toast('Sinhronizacija uključena ☁️');
+    closeSheet(); renderProfile();
+    if(_authCb){ const cb=_authCb; _authCb=null; toast('Nalog spreman ☁️'); cb(); }
+    else { if(S.onboarded) revealApp(); toast('Sinhronizacija uključena ☁️'); }
   }catch(e){ if(err){ err.style.color='#d3543f'; err.textContent=e.message||'Greška. Provjeri internet.'; } }
 }
 window.addEventListener('online',()=>{ if(loggedIn()) cloudPush(); });
@@ -2009,6 +2016,21 @@ if('serviceWorker' in navigator){
 let _deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',(e)=>{ e.preventDefault(); _deferredPrompt=e; showInstallChip(); });
 window.addEventListener('appinstalled',()=>{ _deferredPrompt=null; const c=$('installChip'); if(c) c.remove(); try{toast('Ajmo je instaliran 🎉')}catch(_){} });
+function openInstall(){
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if(standalone){ sheet('<h3>Instalacija 📲</h3><p class="hint">Aplikacija je već instalirana na ovom uređaju ✓</p>'); return; }
+  if(_deferredPrompt){
+    sheet('<h3>Instaliraj Ajmo 📲</h3><p class="hint">Dodaj Ajmo na početni ekran kao pravu aplikaciju.</p><button class="cta" onclick="doInstall()">Instaliraj sad</button>');
+    return;
+  }
+  const ua=navigator.userAgent||''; const isIOS=/iPhone|iPad|iPod/i.test(ua)|| (/(Mac)/i.test(ua)&&navigator.maxTouchPoints>1); const isAndroid=/Android/i.test(ua);
+  let steps;
+  if(isIOS) steps='<b>iPhone / iPad (Safari):</b><br>1. Tapni dugme <b>Podijeli</b> (kvadratić sa strelicom nagore, dolje na sredini)<br>2. Skrolaj i tapni <b>„Add to Home Screen" / „Dodaj na početni ekran"</b><br>3. Potvrdi <b>Add / Dodaj</b>';
+  else if(isAndroid) steps='<b>Android (Chrome):</b><br>1. Tapni meni <b>⋮</b> (gore desno)<br>2. Izaberi <b>„Instaliraj aplikaciju" / „Add to Home screen"</b><br>3. Potvrdi';
+  else steps='<b>Računar (Chrome / Edge):</b><br>Klikni ikonu za instalaciju u adresnoj traci (⊕ / ekran sa strelicom), ili meni <b>⋮ → „Install Ajmo"</b>.';
+  sheet('<h3>Instaliraj Ajmo 📲</h3><p class="hint" style="line-height:1.8">'+steps+'</p>');
+}
+function doInstall(){ if(_deferredPrompt){ _deferredPrompt.prompt(); try{_deferredPrompt.userChoice;}catch(_){}; _deferredPrompt=null; closeSheet(); } }
 function showInstallChip(){
   if(document.getElementById('installChip')) return;
   // ne prikazuj ako je već instaliran (standalone)

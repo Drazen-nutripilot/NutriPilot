@@ -24,8 +24,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 })();
 
 const API_KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = process.env.MODEL || 'claude-haiku-4-5'; // jeftin i brz (tekst, trener, plan)
+const MODEL = process.env.MODEL || 'claude-haiku-4-5'; // jeftin i brz (tekst, trener)
 const VISION_MODEL = process.env.VISION_MODEL || 'claude-sonnet-4-6'; // jači model za slike (bolje vidi hranu)
+const QUALITY_MODEL = process.env.QUALITY_MODEL || 'claude-sonnet-4-6'; // jači model za nazive jela i recepte (čist crnogorski)
+
+/* ---------- ćirilica → latinica (sigurnosna mreža protiv miješanja pisama) ---------- */
+const CYR2LAT = { 'а':'a','б':'b','в':'v','г':'g','д':'d','ђ':'đ','е':'e','ж':'ž','з':'z','и':'i','ј':'j','к':'k','л':'l','љ':'lj','м':'m','н':'n','њ':'nj','о':'o','п':'p','р':'r','с':'s','т':'t','ћ':'ć','у':'u','ф':'f','х':'h','ц':'c','ч':'č','џ':'dž','ш':'š','А':'A','Б':'B','В':'V','Г':'G','Д':'D','Ђ':'Đ','Е':'E','Ж':'Ž','З':'Z','И':'I','Ј':'J','К':'K','Л':'L','Љ':'Lj','М':'M','Н':'N','Њ':'Nj','О':'O','П':'P','Р':'R','С':'S','Т':'T','Ћ':'Ć','У':'U','Ф':'F','Х':'H','Ц':'C','Ч':'Č','Џ':'Dž','Ш':'Š' };
+function toLatin(s){ if(s==null) return s; if(typeof s!=='string') return s; let out=''; for(const ch of s){ out += (CYR2LAT[ch]!==undefined ? CYR2LAT[ch] : ch); } return out; }
+function latItems(arr){ return Array.isArray(arr) ? arr.map(x=> typeof x==='string' ? toLatin(x) : (x&&typeof x==='object' ? Object.fromEntries(Object.entries(x).map(([k,v])=>[k, typeof v==='string'?toLatin(v):v])) : x)) : arr; }
 const PORT = process.env.PORT || 3000;
 const LS_WEBHOOK_SECRET = process.env.LS_WEBHOOK_SECRET || '';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://xqilhefgmygylpnkzqjd.supabase.co';
@@ -118,13 +124,15 @@ const FOOD_TOOL = {
 
 /* Jezik: zaključaj na crnogorski/srpski (ijekavica) i zabrani hrvatske riječi. */
 const LANG_RULES = [
-  'JEZIK JE OBAVEZAN: piši isključivo na crnogorskom/srpskom jeziku, ijekavica (kako se govori u Crnoj Gori). NIKAD engleski, NIKAD hrvatski.',
+  'PISMO: piši ISKLJUČIVO LATINICOM (gajica: č ć đ š ž). NIKAD ćirilicom. NIKAD ne miješaj latinicu i ćirilicu.',
+  'JEZIK: piši na crnogorskom/srpskom, ijekavica (kako se govori u Crnoj Gori). NIKAD engleski, NIKAD hrvatski.',
+  'Koristi SAMO postojeće, obične riječi za hranu koje ljudi stvarno govore. NE izmišljaj riječi. Ako nisi siguran za naziv, koristi jednostavan opisni naziv (npr. „Pileći file sa pirinčem“).',
   'NE koristi hrvatske riječi. Umjesto njih koristi:',
   'hljeb (ne „kruh“), sedmica (ne „tjedan“), kašika (ne „žlica“), viljuška (ne „vilica“), supa ili čorba (ne „juha“),',
   'pasulj (ne „grah“), naut (ne „slanutak“), šargarepa (ne „mrkva“), paradajz (ne „rajčica“), spanać (ne „špinat“),',
   'krompir (ne „krumpir“), pasta ili testenina (ne „tjestenina“), sirće (ne „ocat“), pavlaka (ne „vrhnje“),',
-  'narandža (ne „naranča“), pirinač ili riža, kuvati (ne „kuhati“), činija (ne „zdjela“), pečurke (ne „gljive“ ako može).',
-  'Koristi ijekavicu (mlijeko, bijelo, sjeme, dvije, brašno). Nazivi jela i sastojci moraju zvučati domaće, kao na Balkanu.'
+  'narandža (ne „naranča“), pirinač ili riža, kuvati (ne „kuhati“), činija (ne „zdjela“).',
+  'Koristi ijekavicu (mlijeko, bijelo, sjeme, dvije, brašno). Nazivi jela i sastojci moraju biti prosti i jasni, kao u domaćoj kuhinji na Balkanu.'
 ].join(' ');
 
 const SYSTEM_FOOD = [
@@ -152,7 +160,7 @@ async function handleEstimate(reqBody, res) {
   content.push({ type: 'text', text: text ? `Obrok (opis korisnika): ${text}` : 'Procijeni hranu koja se vidi na slici.' });
 
   const data = await anthropic({
-    model: imageBase64 ? VISION_MODEL : MODEL, // slike → jači model za bolje prepoznavanje
+    model: imageBase64 ? VISION_MODEL : QUALITY_MODEL, // uvijek jači model (bolje prepoznavanje + čist crnogorski)
     max_tokens: 1024,
     system: SYSTEM_FOOD,
     tools: [FOOD_TOOL],
@@ -164,9 +172,9 @@ async function handleEstimate(reqBody, res) {
   if (!tool) return json(res, 502, { error: 'Model nije vratio procjenu.' });
 
   const items = (tool.input.items || []).map((it) => ({
-    name: it.name,
+    name: toLatin(it.name),
     emoji: it.emoji || '🍽️',
-    quantity: it.quantity || '',
+    quantity: toLatin(it.quantity || ''),
     kcal: Math.round(it.kcal || 0),
     protein_g: Math.round(it.protein_g || 0),
     carbs_g: Math.round(it.carbs_g || 0),
@@ -181,7 +189,7 @@ async function handleEstimate(reqBody, res) {
     }),
     { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }
   );
-  json(res, 200, { items, total, confidence: tool.input.confidence || 'medium', note: tool.input.note || '' });
+  json(res, 200, { items, total, confidence: tool.input.confidence || 'medium', note: toLatin(tool.input.note || '') });
 }
 
 const PLAN_TOOL = {
@@ -257,7 +265,7 @@ async function handleRecipe(reqBody, res) {
     `Koristi domaće mjere i uobičajene namirnice za Balkan. Uvijek koristi alat recipe.`;
 
   const data = await anthropic({
-    model: MODEL,
+    model: QUALITY_MODEL,
     max_tokens: 700,
     system: 'Ti si topao domaći kuvar. Recepti su jednostavni, jasni i praktični. ' + LANG_RULES,
     tools: [RECIPE_TOOL],
@@ -269,12 +277,12 @@ async function handleRecipe(reqBody, res) {
   if (!tool) return json(res, 502, { error: 'Model nije vratio recept.' });
   const inp = tool.input || {};
   json(res, 200, {
-    name,
+    name: toLatin(name),
     time_min: Math.round(inp.time_min || 0),
-    difficulty: inp.difficulty || 'Lako',
+    difficulty: toLatin(inp.difficulty || 'Lako'),
     servings: inp.servings || servings || 1,
-    steps: Array.isArray(inp.steps) ? inp.steps.filter(Boolean) : [],
-    tip: inp.tip || ''
+    steps: Array.isArray(inp.steps) ? inp.steps.filter(Boolean).map(toLatin) : [],
+    tip: toLatin(inp.tip || '')
   });
 }
 
@@ -293,7 +301,7 @@ async function handlePlan(reqBody, res) {
     `Koristi uobičajene, dostupne namirnice (uklj. domaća jela). Uvijek koristi alat meal_plan.`;
 
   const data = await anthropic({
-    model: MODEL,
+    model: QUALITY_MODEL,
     max_tokens: 1500,
     system: 'Ti si nutricionista koji pravi realne, ukusne i uravnotežene planove obroka. ' + LANG_RULES,
     tools: [PLAN_TOOL],
@@ -304,15 +312,15 @@ async function handlePlan(reqBody, res) {
   const tool = (data.content || []).find((c) => c.type === 'tool_use');
   if (!tool) return json(res, 502, { error: 'Model nije vratio plan.' });
   const meals = (tool.input.meals || []).map((m) => ({
-    slot: m.slot || 'Obrok',
-    name: m.name,
+    slot: toLatin(m.slot || 'Obrok'),
+    name: toLatin(m.name),
     emoji: m.emoji || '🍽️',
     kcal: Math.round(m.kcal || 0),
     protein_g: Math.round(m.protein_g || 0),
     carbs_g: Math.round(m.carbs_g || 0),
     fat_g: Math.round(m.fat_g || 0),
-    ingredients: Array.isArray(m.ingredients) ? m.ingredients.map((x) => ({ item: x.item, amount: x.amount })) : [],
-    recipe: m.recipe || ''
+    ingredients: Array.isArray(m.ingredients) ? m.ingredients.map((x) => ({ item: toLatin(x.item), amount: toLatin(x.amount) })) : [],
+    recipe: toLatin(m.recipe || '')
   }));
   const total = meals.reduce((a, m) => a + m.kcal, 0);
   json(res, 200, { meals, totalKcal: total });
@@ -328,14 +336,14 @@ async function handleCoach(reqBody, res) {
     : '';
 
   const data = await anthropic({
-    model: MODEL,
+    model: QUALITY_MODEL,
     max_tokens: 300,
     system:
       'Ti si topao, motivišući AI trener za ishranu. Odgovaraj kratko (2–4 rečenice), praktično. Bez medicinskih tvrdnji; za ozbiljna zdravstvena pitanja preporuči stručnjaka. ' + LANG_RULES,
     messages: [{ role: 'user', content: `${ctx}\n\nPitanje: ${question}` }]
   });
 
-  const text = (data.content || []).filter((c) => c.type === 'text').map((c) => c.text).join(' ').trim();
+  const text = toLatin((data.content || []).filter((c) => c.type === 'text').map((c) => c.text).join(' ').trim());
   json(res, 200, { answer: text || 'Tu sam da pomognem — postavi pitanje o ishrani.' });
 }
 

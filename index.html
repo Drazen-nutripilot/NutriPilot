@@ -503,7 +503,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.35 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.36 · demo</p>
     </div>
   </div>
 
@@ -1051,11 +1051,11 @@ function _fdef(){ if(!S.fast) S.fast={active:false,start:0,hours:16,done:0}; ret
 function setFastProtocol(h){ const f=_fdef(); if(f.active) return; f.hours=h; save(); renderFast(); }
 function toggleFast(){
   const f=_fdef();
-  if(!f.active){ f.active=true; f.start=Date.now(); try{toast('Post počinje — drži se! 💪');}catch(e){} }
+  if(!f.active){ f.active=true; f.start=Date.now(); try{toast('Fasting počinje — drži se! 💪');}catch(e){} }
   else {
     const goalMs=f.hours*3600000, el=Date.now()-f.start;
-    if(el>=goalMs){ f.done=(f.done||0)+1; try{toast('Post završen — svaka čast! 🎉');}catch(e){} try{awardXp(15);}catch(e){} }
-    else { try{toast('Post prekinut.');}catch(e){} }
+    if(el>=goalMs){ f.done=(f.done||0)+1; try{toast('Fasting završen — svaka čast! 🎉');}catch(e){} try{awardXp(15);}catch(e){} }
+    else { try{toast('Fasting prekinut.');}catch(e){} }
     f.active=false; f.start=0;
   }
   save(); renderFast();
@@ -1068,8 +1068,8 @@ function renderFast(){
   let body;
   if(!f.active){
     body=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 12px">${chips}</div>
-      <button onclick="toggleFast()" style="width:100%;border:none;border-radius:14px;padding:13px;font-weight:800;font-size:15px;color:#fff;background:linear-gradient(135deg,var(--green),var(--green2));cursor:pointer">Započni post (${f.hours}h)</button>
-      <p style="margin:10px 2px 0;color:var(--muted);font-size:12.5px">Prozor ishrane: ${24-f.hours}h · post: ${f.hours}h</p>`;
+      <button onclick="toggleFast()" style="width:100%;border:none;border-radius:14px;padding:13px;font-weight:800;font-size:15px;color:#fff;background:linear-gradient(135deg,var(--green),var(--green2));cursor:pointer">Započni fasting (${f.hours}h)</button>
+      <p style="margin:10px 2px 0;color:var(--muted);font-size:12.5px">Prozor ishrane: ${24-f.hours}h · fasting: ${f.hours}h</p>`;
   } else {
     const now=Date.now(), elp=now-f.start, prog=Math.min(1,elp/goalMs), rem=Math.max(0,goalMs-elp), done=elp>=goalMs;
     const endT=new Date(f.start+goalMs).toLocaleTimeString('sr-Latn',{hour:'2-digit',minute:'2-digit'});
@@ -1085,11 +1085,11 @@ function renderFast(){
         <div style="font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">${done?'Cilj postignut 🎉':'Preostalo'}</div>
         <div style="font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--green2)">${done?_hhmmss(elp):_hhmmss(rem)}</div>
         <div style="font-size:12.5px;color:var(--muted);margin-top:2px">Prošlo ${_hhmmss(elp)} · do ${endT}</div>
-        <button onclick="toggleFast()" style="margin-top:10px;border:none;border-radius:12px;padding:10px 16px;font-weight:800;font-size:14px;color:#fff;background:${done?'linear-gradient(135deg,var(--green),var(--green2))':'#e0574a'};cursor:pointer">${done?'Završi post ✓':'Prekini'}</button>
+        <button onclick="toggleFast()" style="margin-top:10px;border:none;border-radius:12px;padding:10px 16px;font-weight:800;font-size:14px;color:#fff;background:${done?'linear-gradient(135deg,var(--green),var(--green2))':'#e0574a'};cursor:pointer">${done?'Završi fasting ✓':'Prekini'}</button>
       </div></div>`;
   }
   el.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between">
-      <div style="display:flex;align-items:center;gap:10px"><div style="width:34px;height:34px;border-radius:12px;background:#fdeede;display:flex;align-items:center;justify-content:center;font-size:18px">⏱️</div><b style="font-size:16px">Post</b></div>
+      <div style="display:flex;align-items:center;gap:10px"><div style="width:34px;height:34px;border-radius:12px;background:#fdeede;display:flex;align-items:center;justify-content:center;font-size:18px">⏱️</div><b style="font-size:16px">Fasting</b></div>
       <span style="font-size:12px;color:var(--muted)">${f.done||0} završenih</span>
     </div>${body}`;
 }

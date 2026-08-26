@@ -505,7 +505,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.37 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.38 · demo</p>
     </div>
   </div>
 
@@ -530,6 +530,7 @@ const S = {
   waterGoal:8, recent:[], favs:['jaja','piletina'],
   customFoods:{}, customSeq:0,
   steps:6200, stepGoal:10000, fast:{active:false,start:0,hours:16,done:0}, workouts:[],
+  shop:[], recipeCache:{},
   weekKcal:[1720,1540,1980,1600,1450,1810,0],
   trainDone:{}, trainWeek:0, wPeriod:'7', weights30:[], monthKcal:[],
   // gejmifikacija
@@ -589,7 +590,7 @@ function resetForNewUser(){
   S.monthKcal=[];
   S.mealRecent={}; S.mealBags={};
   S.fast={active:false,start:0,hours:(S.fast&&S.fast.hours)||16,done:0};
-  S.workouts=[];
+  S.workouts=[]; S.shop=[];
 }
 /* ---- projekcija do cilja ---- */
 function projInfo(){
@@ -1502,7 +1503,9 @@ function scalePlanToTarget(meals){
     carbs_g:Math.round(m.carbs_g*factor), fat_g:Math.round(m.fat_g*factor),
     ingredients:(m.ingredients||[]).map(x=>({item:x.item, amount:scaleAmount(x.amount,factor)})) }));
 }
+let _lastPlan=[];
 function renderPlan(meals,total,demo){
+  _lastPlan=meals||[];
   $('planSub').innerHTML=`Ukupno ~<b>${fmt(total)} kcal</b> · cilj ${fmt(S.target.kcal)} kcal`+(demo?' <span style="color:var(--muted)">(offline primjer)</span>':'');
   $('planList').innerHTML=meals.map((m,i)=>`<div class="planmeal">
     <div class="h"><div class="em">${m.emoji}</div>
@@ -1511,10 +1514,108 @@ function renderPlan(meals,total,demo){
     ${m.ingredients&&m.ingredients.length?`<div class="ingr">${m.ingredients.map(x=>`<span>${x.item} <b>${x.amount}</b></span>`).join('')}</div>`:''}
     <div class="pmac">B ${m.protein_g} g · UH ${m.carbs_g} g · M ${m.fat_g} g</div>
     ${m.recipe?`<p class="rec">${m.recipe}</p>`:''}
-    <button class="add" onclick='addPlanMeal(${JSON.stringify(m).replace(/'/g,"&#39;")})'>+ Dodaj u dnevnik</button></div>`).join('')
-    +`<button class="cta" style="margin:8px 0 4px;box-shadow:none;background:var(--card2);color:var(--green2)" onclick="makePlan()">🔄 Napravi drugačiji plan</button>`;
+    <div style="display:flex;gap:8px;margin-top:2px">
+      <button onclick="openRecipe(${i})" style="flex:1;border:none;border-radius:12px;padding:10px;font-weight:800;font-size:13.5px;cursor:pointer;background:var(--soft);color:var(--green2)">👨‍🍳 Recept</button>
+      <button class="add" style="flex:1;margin:0" onclick='addPlanMeal(${JSON.stringify(m).replace(/'/g,"&#39;")})'>+ Dnevnik</button>
+    </div></div>`).join('')
+    +`<button class="cta" style="margin:10px 0 4px" onclick="openShop()">🛒 Lista za kupovinu</button>`
+    +`<button class="cta" style="margin:4px 0" onclick="makePlan()" style="box-shadow:none;background:var(--card2);color:var(--green2)">🔄 Napravi drugačiji plan</button>`;
 }
 function addPlanMeal(m){ addMeal({name:m.name,e:m.emoji,kc:m.kcal,p:m.protein_g,c:m.carbs_g,f:m.fat_g,slot:m.slot}); toast('Dodato u '+(m.slot||'dnevnik').toLowerCase()+' ✓'); }
+
+/* ================= RECEPT KORAK-PO-KORAK ================= */
+function _fallbackRecipe(m){
+  let steps=[];
+  if(m.recipe){ steps=String(m.recipe).split(/(?<=[.!?])\s+/).map(s=>s.trim()).filter(Boolean); }
+  if(!steps.length){
+    steps=['Pripremi sve sastojke.','Skuvaj/pripremi po želji.','Začini po ukusu i posluži.'];
+  }
+  return { time_min: 15, difficulty:'Lako', servings:1, steps, tip:'', _offline:true };
+}
+function _recipeHTML(m,r){
+  const ing=(m.ingredients&&m.ingredients.length)?`<div style="margin:12px 0 6px"><div style="font-size:12px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Sastojci</div>${m.ingredients.map(x=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line)"><span>${x.item}</span><b style="color:var(--green2)">${x.amount}</b></div>`).join('')}</div>`:'';
+  const meta=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 2px">
+    <span style="background:var(--soft);color:var(--green2);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:800">⏱️ ${r.time_min||15} min</span>
+    <span style="background:var(--soft);color:var(--green2);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:800">📊 ${r.difficulty||'Lako'}</span>
+    <span style="background:var(--soft);color:var(--green2);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:800">🔥 ${m.kcal} kcal</span></div>`;
+  const steps=`<div style="margin:12px 0 6px"><div style="font-size:12px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Priprema</div>${
+    (r.steps||[]).map((s,i)=>`<div style="display:flex;gap:10px;margin-bottom:10px"><div style="flex:none;width:24px;height:24px;border-radius:999px;background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center">${i+1}</div><div style="flex:1;font-size:14px;line-height:1.4;padding-top:2px">${s}</div></div>`).join('')
+  }</div>`;
+  const tip=r.tip?`<div style="background:#fdeede;border-radius:14px;padding:11px 13px;font-size:13px;margin:4px 0 12px">💡 <b>Savjet:</b> ${r.tip}</div>`:'';
+  const off=r._offline?`<p class="hint" style="text-align:center;margin-top:2px">Osnovni recept (AI recept traži pokrenut server).</p>`:'';
+  return meta+ing+steps+tip+
+    `<button class="cta" onclick='addPlanMeal(${JSON.stringify(m).replace(/'/g,"&#39;")})'>+ Dodaj u dnevnik</button>`+off;
+}
+async function openRecipe(i){
+  const m=_lastPlan[i]; if(!m) return;
+  sheet(`<div class="grip"></div><h3 style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">${m.emoji||'🍽️'}</span>${m.name}</h3>
+    <div id="recBody"><div class="planhead" style="justify-content:center;padding:20px 0"><div class="spinner"></div></div><p class="hint" style="text-align:center">Pripremam recept…</p></div>`);
+  S.recipeCache=S.recipeCache||{};
+  try{
+    let r=S.recipeCache[m.name];
+    if(!r){
+      const resp=await fetch('/api/recipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:m.name,ingredients:m.ingredients||[],kcal:m.kcal})});
+      if(!resp.ok) throw new Error('server');
+      r=await resp.json();
+      if(!r.steps||!r.steps.length) throw new Error('empty');
+      S.recipeCache[m.name]=r; save();
+    }
+    const el=$('recBody'); if(el) el.innerHTML=_recipeHTML(m,r);
+  }catch(e){
+    const el=$('recBody'); if(el) el.innerHTML=_recipeHTML(m,_fallbackRecipe(m));
+  }
+}
+
+/* ================= LISTA ZA KUPOVINU ================= */
+function _shop(){ if(!Array.isArray(S.shop)) S.shop=[]; return S.shop; }
+function buildShopFromPlan(){
+  if(!_lastPlan.length){ toast('Prvo napravi plan ishrane.'); return; }
+  const prev=_shop(); const doneMap={}; prev.forEach(it=>{ if(it.done) doneMap[(it.item||'').toLowerCase()]=true; });
+  const custom=prev.filter(it=>it.custom);
+  const map={};
+  _lastPlan.forEach(m=>(m.ingredients||[]).forEach(x=>{
+    const key=(x.item||'').toLowerCase().trim(); if(!key) return;
+    if(!map[key]) map[key]={item:x.item, amounts:[]};
+    if(x.amount) map[key].amounts.push(x.amount);
+  }));
+  const items=Object.values(map).map(o=>({item:o.item, amount:o.amounts.join(' + '), done:!!doneMap[o.item.toLowerCase()]}));
+  S.shop=items.concat(custom); save(); renderShop(); toast('Lista napravljena iz plana ✓');
+}
+function toggleShop(i){ const l=_shop(); if(l[i]){ l[i].done=!l[i].done; save(); renderShop(); } }
+function delShop(i){ const l=_shop(); if(i>=0&&i<l.length){ l.splice(i,1); save(); renderShop(); } }
+function addShopItem(){
+  const it=$('shopIn'), am=$('shopAmt'); if(!it) return;
+  const name=(it.value||'').trim(); if(!name) return;
+  _shop().push({item:name, amount:(am&&am.value||'').trim(), done:false, custom:true});
+  it.value=''; if(am) am.value=''; save(); renderShop(); it.focus();
+}
+function clearShopDone(){ S.shop=_shop().filter(it=>!it.done); save(); renderShop(); }
+function openShop(){
+  sheet(`<div class="grip"></div><h3>🛒 Lista za kupovinu</h3>
+    <div style="display:flex;gap:8px;margin:12px 0 10px">
+      <input id="shopIn" placeholder="Dodaj namirnicu" style="flex:2;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:14px;background:var(--card)">
+      <input id="shopAmt" placeholder="kol." style="flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:14px;background:var(--card)">
+      <button onclick="addShopItem()" style="flex:none;border:none;border-radius:12px;padding:0 16px;font-weight:800;font-size:20px;color:#fff;background:linear-gradient(135deg,var(--green),var(--green2));cursor:pointer">+</button>
+    </div>
+    <div id="shopList"></div>`);
+  renderShop();
+}
+function renderShop(){
+  const el=$('shopList'); if(!el) return;
+  const l=_shop();
+  const btns=`<div style="display:flex;gap:8px;margin:12px 0 4px">
+      <button onclick="buildShopFromPlan()" style="flex:1;border:none;border-radius:12px;padding:11px;font-weight:800;font-size:13px;cursor:pointer;background:var(--soft);color:var(--green2)">🔄 Iz plana</button>
+      ${l.some(x=>x.done)?`<button onclick="clearShopDone()" style="flex:1;border:none;border-radius:12px;padding:11px;font-weight:800;font-size:13px;cursor:pointer;background:var(--soft);color:var(--muted)">✓ Skloni kupljeno</button>`:''}
+    </div>`;
+  if(!l.length){ el.innerHTML=`<p class="hint" style="text-align:center;padding:8px 0">Lista je prazna. Dodaj namirnicu ili je napravi iz plana ishrane.</p>`+btns; return; }
+  const left=l.filter(x=>!x.done).length;
+  const rows=l.map((it,i)=>`<div style="display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)">
+      <div onclick="toggleShop(${i})" style="flex:none;width:23px;height:23px;border-radius:7px;border:2px solid ${it.done?'var(--green2)':'var(--line)'};background:${it.done?'var(--green2)':'transparent'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer">${it.done?'✓':''}</div>
+      <div onclick="toggleShop(${i})" style="flex:1;min-width:0;cursor:pointer"><div style="font-size:14px;font-weight:600;${it.done?'text-decoration:line-through;color:var(--muted)':''}">${it.item}</div>${it.amount?`<div style="font-size:12px;color:var(--muted)">${it.amount}</div>`:''}</div>
+      <button onclick="delShop(${i})" style="flex:none;border:none;background:none;color:var(--muted);font-size:15px;cursor:pointer;padding:2px 4px">✕</button>
+    </div>`).join('');
+  el.innerHTML=`<div style="font-size:12px;color:var(--muted);margin:2px 2px 6px">${left} za kupovinu · ${l.length} ukupno</div>${rows}${btns}`;
+}
 
 /* prebacivanje Ishrana / Trening */
 function planTab(w){

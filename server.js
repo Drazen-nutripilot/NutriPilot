@@ -210,6 +210,62 @@ const PLAN_TOOL = {
   }
 };
 
+const RECIPE_TOOL = {
+  name: 'recipe',
+  description: 'Vrati recept korak-po-korak za zadato jelo.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      time_min: { type: 'number', description: 'Ukupno vrijeme pripreme u minutima.' },
+      difficulty: { type: 'string', description: 'Težina: Lako / Srednje / Zahtjevno.' },
+      servings: { type: 'number', description: 'Broj porcija za koje je recept (obično 1).' },
+      steps: {
+        type: 'array',
+        description: 'Koraci pripreme, redom. Svaki korak jedna kratka, jasna rečenica.',
+        items: { type: 'string' }
+      },
+      tip: { type: 'string', description: 'Jedan kratak koristan savjet (opciono).' }
+    },
+    required: ['time_min', 'difficulty', 'steps']
+  }
+};
+
+async function handleRecipe(reqBody, res) {
+  if (!API_KEY) return json(res, 500, { error: 'Server nema ANTHROPIC_API_KEY.' });
+  const { name, ingredients, kcal, servings } = reqBody || {};
+  if (!name) return json(res, 400, { error: 'Pošalji name.' });
+  const ingList = Array.isArray(ingredients) && ingredients.length
+    ? ingredients.map((x) => `${x.item} ${x.amount || ''}`.trim()).join(', ')
+    : '';
+  const prompt =
+    `Napiši recept korak-po-korak za jelo: "${name}"` +
+    (kcal ? ` (oko ${kcal} kcal po porciji)` : '') + `. ` +
+    (ingList ? `Sastojci koje imamo: ${ingList}. Drži se ovih sastojaka; dozvoli osnovne dodatke (so, biber, ulje, voda). ` : '') +
+    `Napiši 4-7 jasnih, kratkih koraka koje početnik može da isprati. ` +
+    `Koristi domaće mjere i uobičajene namirnice za Balkan. Uvijek koristi alat recipe.`;
+
+  const data = await anthropic({
+    model: MODEL,
+    max_tokens: 700,
+    system: 'Ti si topao domaći kuvar. Recepti su jednostavni, jasni i praktični. Piši na jeziku korisnika (crnogorski/srpski, ijekavica).',
+    tools: [RECIPE_TOOL],
+    tool_choice: { type: 'tool', name: 'recipe' },
+    messages: [{ role: 'user', content: prompt }]
+  });
+
+  const tool = (data.content || []).find((c) => c.type === 'tool_use');
+  if (!tool) return json(res, 502, { error: 'Model nije vratio recept.' });
+  const inp = tool.input || {};
+  json(res, 200, {
+    name,
+    time_min: Math.round(inp.time_min || 0),
+    difficulty: inp.difficulty || 'Lako',
+    servings: inp.servings || servings || 1,
+    steps: Array.isArray(inp.steps) ? inp.steps.filter(Boolean) : [],
+    tip: inp.tip || ''
+  });
+}
+
 async function handlePlan(reqBody, res) {
   if (!API_KEY) return json(res, 500, { error: 'Server nema ANTHROPIC_API_KEY.' });
   const { targetKcal, protein, goal, preferences, seed } = reqBody || {};
@@ -375,6 +431,7 @@ http.createServer(async (req, res) => {
     if (req.method === 'POST' && req.url.startsWith('/api/ls-webhook')) return handleLsWebhook(req, res);
     if (req.method === 'POST' && req.url.startsWith('/api/estimate')) return handleEstimate(await readBody(req), res);
     if (req.method === 'POST' && req.url.startsWith('/api/plan')) return handlePlan(await readBody(req), res);
+    if (req.method === 'POST' && req.url.startsWith('/api/recipe')) return handleRecipe(await readBody(req), res);
     if (req.method === 'POST' && req.url.startsWith('/api/coach')) return handleCoach(await readBody(req), res);
     if (req.method === 'GET' && req.url.split('?')[0] === '/manifest.webmanifest') {
       res.writeHead(200, { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control':'no-cache' });

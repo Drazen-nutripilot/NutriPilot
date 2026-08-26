@@ -427,6 +427,8 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="go">›</div>
       </div>
 
+      <div id="fastCard" style="background:var(--card);border-radius:22px;padding:16px 18px;box-shadow:var(--shadow);margin-bottom:18px"></div>
+
       <div class="coachcard" onclick="openCoach()">
         <div class="rob">🤖</div>
         <div class="tx" id="coachMsg">Spreman sam da ti pomognem danas.</div>
@@ -501,7 +503,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.34 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.35 · demo</p>
     </div>
   </div>
 
@@ -525,7 +527,7 @@ const S = {
   weights:[73.4,73.0,72.8,72.5,72.3,72.0,72.0], plan:null,
   waterGoal:8, recent:[], favs:['jaja','piletina'],
   customFoods:{}, customSeq:0,
-  steps:6200, stepGoal:10000,
+  steps:6200, stepGoal:10000, fast:{active:false,start:0,hours:16,done:0},
   weekKcal:[1720,1540,1980,1600,1450,1810,0],
   trainDone:{}, trainWeek:0, wPeriod:'7', weights30:[], monthKcal:[],
   // gejmifikacija
@@ -583,6 +585,7 @@ function resetForNewUser(){
   S.weights30=Array.from({length:30},()=>w);
   S.monthKcal=[];
   S.mealRecent={}; S.mealBags={};
+  S.fast={active:false,start:0,hours:(S.fast&&S.fast.hours)||16,done:0};
 }
 /* ---- projekcija do cilja ---- */
 function projInfo(){
@@ -855,7 +858,7 @@ function startApp(){
 }
 
 /* ================= RENDER ================= */
-function renderAll(){ renderHome(); renderProgress(); renderProfile(); save(); }
+function renderAll(){ renderHome(); renderFast(); renderProgress(); renderProfile(); save(); }
 function renderHome(){
   const t=S.target,e=S.eaten,left=Math.max(t.kcal-e.kcal,0);
   syncPosnoBtns();
@@ -1041,6 +1044,54 @@ function renderProfile(){
   if($('acctLb')) $('acctLb').textContent=_li?((_sess()||{}).email||'Nalog'):'Prijava / Registracija';
   if($('acctRt')) $('acctRt').innerHTML=(_li?'Sinhronizovano ✓':'Sinhronizuj')+' <span>›</span>';
   save();
+}
+
+/* ================= POST (fasting) ================= */
+function _fdef(){ if(!S.fast) S.fast={active:false,start:0,hours:16,done:0}; return S.fast; }
+function setFastProtocol(h){ const f=_fdef(); if(f.active) return; f.hours=h; save(); renderFast(); }
+function toggleFast(){
+  const f=_fdef();
+  if(!f.active){ f.active=true; f.start=Date.now(); try{toast('Post počinje — drži se! 💪');}catch(e){} }
+  else {
+    const goalMs=f.hours*3600000, el=Date.now()-f.start;
+    if(el>=goalMs){ f.done=(f.done||0)+1; try{toast('Post završen — svaka čast! 🎉');}catch(e){} try{awardXp(15);}catch(e){} }
+    else { try{toast('Post prekinut.');}catch(e){} }
+    f.active=false; f.start=0;
+  }
+  save(); renderFast();
+}
+function _hhmmss(x){ x=Math.max(0,x); const h=Math.floor(x/3600000),m=Math.floor((x%3600000)/60000),s=Math.floor((x%60000)/1000); const p=n=>(n<10?'0':'')+n; return p(h)+':'+p(m)+':'+p(s); }
+function renderFast(){
+  const el=$('fastCard'); if(!el) return;
+  const f=_fdef(), goalMs=f.hours*3600000, protos=[16,18,20];
+  const chips=protos.map(h=>`<button onclick="event.stopPropagation();setFastProtocol(${h})" style="border:none;cursor:pointer;border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:800;background:${(f.hours===h&&!f.active)?'var(--green2)':'var(--soft)'};color:${(f.hours===h&&!f.active)?'#fff':'var(--green2)'}">${h}:${24-h}</button>`).join('');
+  let body;
+  if(!f.active){
+    body=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 12px">${chips}</div>
+      <button onclick="toggleFast()" style="width:100%;border:none;border-radius:14px;padding:13px;font-weight:800;font-size:15px;color:#fff;background:linear-gradient(135deg,var(--green),var(--green2));cursor:pointer">Započni post (${f.hours}h)</button>
+      <p style="margin:10px 2px 0;color:var(--muted);font-size:12.5px">Prozor ishrane: ${24-f.hours}h · post: ${f.hours}h</p>`;
+  } else {
+    const now=Date.now(), elp=now-f.start, prog=Math.min(1,elp/goalMs), rem=Math.max(0,goalMs-elp), done=elp>=goalMs;
+    const endT=new Date(f.start+goalMs).toLocaleTimeString('sr-Latn',{hour:'2-digit',minute:'2-digit'});
+    const R=52,C=2*Math.PI*R,off=C*(1-prog);
+    body=`<div style="display:flex;align-items:center;gap:16px;margin-top:12px">
+      <div style="position:relative;width:120px;height:120px;flex:none">
+        <svg width="120" height="120" viewBox="0 0 120 120"><defs><linearGradient id="fgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff9a4d"/><stop offset="1" stop-color="#ff5a3c"/></linearGradient></defs>
+          <circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--line)" stroke-width="11"/>
+          <circle cx="60" cy="60" r="${R}" fill="none" stroke="url(#fgrad)" stroke-width="11" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 60 60)"/></svg>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center"><b style="font-size:19px">${Math.round(prog*100)}%</b><span style="font-size:11px;color:var(--muted)">${f.hours}h</span></div>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">${done?'Cilj postignut 🎉':'Preostalo'}</div>
+        <div style="font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--green2)">${done?_hhmmss(elp):_hhmmss(rem)}</div>
+        <div style="font-size:12.5px;color:var(--muted);margin-top:2px">Prošlo ${_hhmmss(elp)} · do ${endT}</div>
+        <button onclick="toggleFast()" style="margin-top:10px;border:none;border-radius:12px;padding:10px 16px;font-weight:800;font-size:14px;color:#fff;background:${done?'linear-gradient(135deg,var(--green),var(--green2))':'#e0574a'};cursor:pointer">${done?'Završi post ✓':'Prekini'}</button>
+      </div></div>`;
+  }
+  el.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:10px"><div style="width:34px;height:34px;border-radius:12px;background:#fdeede;display:flex;align-items:center;justify-content:center;font-size:18px">⏱️</div><b style="font-size:16px">Post</b></div>
+      <span style="font-size:12px;color:var(--muted)">${f.done||0} završenih</span>
+    </div>${body}`;
 }
 
 /* ================= NAV ================= */
@@ -2145,6 +2196,7 @@ function showInstallChip(){
 
 /* ================= INIT ================= */
 startApp();
+setInterval(()=>{ try{ if(S.fast&&S.fast.active){ const t=$('tab-home'); if(t&&!t.classList.contains('hide')) renderFast(); } }catch(e){} }, 1000);
 </script>
 </body>
 </html>

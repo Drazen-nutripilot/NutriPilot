@@ -132,7 +132,8 @@ const LANG_RULES = [
   'pasulj (ne „grah“), naut (ne „slanutak“), šargarepa (ne „mrkva“), paradajz (ne „rajčica“), spanać (ne „špinat“),',
   'krompir (ne „krumpir“), pasta ili testenina (ne „tjestenina“), sirće (ne „ocat“), pavlaka (ne „vrhnje“),',
   'narandža (ne „naranča“), pirinač ili riža, kuvati (ne „kuhati“), činija (ne „zdjela“).',
-  'Koristi ijekavicu (mlijeko, bijelo, sjeme, dvije, brašno). Nazivi jela i sastojci moraju biti prosti i jasni, kao u domaćoj kuhinji na Balkanu.'
+  'Koristi ijekavicu (mlijeko, bijelo, sjeme, dvije, brašno).',
+  'NAZIVI JELA moraju biti JASNI, POTPUNI i sa velikim početnim slovom, kao u domaćoj kuhinji (npr. „Pileći file sa pirinčem i povrćem“, „Omlet sa sirom“, „Pasulj sa dimljenim mesom“). NE koristi puke jednorječne, nepotpune ni nejasne nazive (npr. ne „omleta“, ne „file“, ne „naut“ samo) — svaki naziv mora jasno opisati jelo.'
 ].join(' ');
 
 const SYSTEM_FOOD = [

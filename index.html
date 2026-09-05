@@ -503,9 +503,10 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem" onclick="openInstall()"><div class="ic">📲</div><div class="lb">Instaliraj na telefon</div><div class="rt">›</div></div>
         <div class="pitem"><div class="ic">⭐</div><div class="lb">Ocijeni aplikaciju</div><div class="rt">›</div></div>
         <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
+        <div class="pitem" onclick="openDisclaimer()"><div class="ic">⚖️</div><div class="lb">Uslovi i odricanje odgovornosti</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.40 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.41 · demo</p>
     </div>
   </div>
 
@@ -676,8 +677,8 @@ const STEPS=[
       </div>
       <div class="chips"><span>🏠 Domaća jela</span><span>🗣️ Naš jezik</span><span>🏋️ Trening + ishrana</span></div>
       <div class="trust"><b>★★★★★</b> Napravljeno za naš region</div>
-      <button class="cta" onclick="obNext()">Krenimo →</button>
-      <div style="margin-top:14px"><a onclick="openAuth()" style="color:var(--muted);font-size:13px;cursor:pointer">Već imaš nalog? <b style="color:var(--green2)">Prijavi se</b></a></div>
+      <button class="cta" onclick="obNext()">Napravi nalog →</button>
+      <button class="cta" style="background:var(--soft);color:var(--green2);margin-top:10px" onclick="openAuth()">Već imam nalog — Prijavi se</button>
     </div></div>`,
   // 1 goal
   ()=>`<div class="step"><h1>Koji je tvoj cilj?</h1><p class="sub">Prilagodićemo ti dnevne kalorije.</p>
@@ -856,6 +857,7 @@ function load(){
 }
 function startApp(){
   load(); // učitaj lokalne postavke (tema itd.)
+  if(checkRecovery()) return;   // ako je korisnik stigao preko linka za promjenu lozinke
   if(loggedIn() && S.onboarded){ revealApp(); renderAll(); }
   else { renderStep(); }  // bez naloga (ili neonboardovan) -> onboarding / prijava, NE ulazi u app
   // ako postoji sesija -> osvježi token i povuci podatke iz oblaka (best-effort)
@@ -1292,7 +1294,271 @@ const FOODS={
   vino:{e:'🍷',name:'Vino (1.5dl)',cat:'alkohol',unit:'čaša',step:1,def:1,per:{kc:125,p:0,c:4,f:0}},
   rakija:{e:'🥃',name:'Rakija (0.3dl)',cat:'alkohol',unit:'čaša',step:1,def:1,per:{kc:70,p:0,c:0,f:0}},
   viski:{e:'🥃',name:'Viski (0.3dl)',cat:'alkohol',unit:'čaša',step:1,def:1,per:{kc:70,p:0,c:0,f:0}},
-  koktel:{e:'🍹',name:'Koktel',cat:'alkohol',unit:'čaša',step:1,def:1,per:{kc:250,p:0,c:30,f:0}}
+  koktel:{e:'🍹',name:'Koktel',cat:'alkohol',unit:'čaša',step:1,def:1,per:{kc:250,p:0,c:30,f:0}},
+  /* ===== PROŠIRENA BAZA (v0.41) ===== */
+  // ===== MESO (meat & poultry) =====
+  pilecibatak:{e:'🍗',name:'Pileći batak (pečeni)',cat:'meso',unit:'g',step:50,def:150,per:{kc:209,p:26,c:0,f:11}},
+  pilecakrilca:{e:'🍗',name:'Pileća krilca (pečena)',cat:'meso',unit:'g',step:50,def:150,per:{kc:266,p:27,c:0,f:17}},
+  pilecifile:{e:'🍗',name:'Pileći file (grilovan)',cat:'meso',unit:'g',step:50,def:150,per:{kc:165,p:31,c:0,f:3.6}},
+  pohovanapiletina:{e:'🍗',name:'Pohovana piletina',cat:'meso',unit:'g',step:50,def:150,per:{kc:250,p:20,c:12,f:13}},
+  curecifile:{e:'🦃',name:'Ćureći file (grilovan)',cat:'meso',unit:'g',step:50,def:150,per:{kc:135,p:30,c:0,f:1}},
+  curecibatak:{e:'🦃',name:'Ćureći batak (pečeni)',cat:'meso',unit:'g',step:50,def:150,per:{kc:170,p:28,c:0,f:6}},
+  curetina:{e:'🦃',name:'Ćuretina (pečena)',cat:'meso',unit:'g',step:50,def:150,per:{kc:189,p:29,c:0,f:7}},
+  junecibiftek:{e:'🥩',name:'Juneći biftek',cat:'meso',unit:'g',step:50,def:150,per:{kc:217,p:26,c:0,f:12}},
+  junecapecenica:{e:'🥩',name:'Juneća pečenica',cat:'meso',unit:'g',step:50,def:150,per:{kc:250,p:27,c:0,f:15}},
+  teletina:{e:'🥩',name:'Teletina (pečena)',cat:'meso',unit:'g',step:50,def:150,per:{kc:172,p:31,c:0,f:5}},
+  telecikotlet:{e:'🥩',name:'Teleći kotlet',cat:'meso',unit:'g',step:50,def:150,per:{kc:196,p:24,c:0,f:11}},
+  jagnjetina:{e:'🍖',name:'Jagnjetina (pečena)',cat:'meso',unit:'g',step:50,def:150,per:{kc:294,p:25,c:0,f:21}},
+  jagnjecikotlet:{e:'🍖',name:'Jagnjeći kotlet',cat:'meso',unit:'g',step:50,def:150,per:{kc:280,p:24,c:0,f:20}},
+  svinjskikotlet:{e:'🍖',name:'Svinjski kotlet',cat:'meso',unit:'g',step:50,def:150,per:{kc:231,p:26,c:0,f:14}},
+  svinjskavrat:{e:'🍖',name:'Svinjski vrat (pečeni)',cat:'meso',unit:'g',step:50,def:150,per:{kc:290,p:22,c:0,f:22}},
+  svinjskarebra:{e:'🍖',name:'Svinjska rebra',cat:'meso',unit:'g',step:50,def:150,per:{kc:320,p:21,c:0,f:26}},
+  svinjskapecenica:{e:'🍖',name:'Svinjska pečenica',cat:'meso',unit:'g',step:50,def:150,per:{kc:242,p:27,c:0,f:14}},
+  svinjskabuta:{e:'🍖',name:'Svinjska buta (pečena)',cat:'meso',unit:'g',step:50,def:150,per:{kc:210,p:29,c:0,f:10}},
+  mljevenomeso:{e:'🥩',name:'Mljeveno meso (mješano)',cat:'meso',unit:'g',step:50,def:150,per:{kc:250,p:18,c:0,f:20}},
+  mljevenojunece:{e:'🥩',name:'Mljeveno juneće meso',cat:'meso',unit:'g',step:50,def:150,per:{kc:215,p:20,c:0,f:15}},
+  sunka:{e:'🍖',name:'Šunka',cat:'meso',unit:'g',step:25,def:50,per:{kc:145,p:21,c:1,f:6}},
+  slanina:{e:'🥓',name:'Slanina',cat:'meso',unit:'g',step:25,def:50,per:{kc:500,p:13,c:0,f:50}},
+  kobasica:{e:'🌭',name:'Kobasica (pečena)',cat:'meso',unit:'g',step:50,def:100,per:{kc:300,p:15,c:2,f:26}},
+  hrenovke:{e:'🌭',name:'Hrenovke',cat:'meso',unit:'g',step:25,def:100,per:{kc:290,p:11,c:2,f:26}},
+  cevapkomad:{e:'🍖',name:'Ćevap (komad)',cat:'meso',unit:'kom',step:1,def:5,per:{kc:55,p:4,c:0.5,f:4}},
+  dzigerica:{e:'🍖',name:'Pileća džigerica',cat:'meso',unit:'g',step:50,def:100,per:{kc:119,p:17,c:1,f:5}},
+  junecidzigerica:{e:'🍖',name:'Juneća džigerica',cat:'meso',unit:'g',step:50,def:100,per:{kc:135,p:20,c:4,f:4}},
+  rostbif:{e:'🥩',name:'Rozbif',cat:'meso',unit:'g',step:25,def:100,per:{kc:190,p:30,c:0,f:8}},
+  suvomeso:{e:'🥩',name:'Suvo meso (goveđe)',cat:'meso',unit:'g',step:25,def:50,per:{kc:250,p:36,c:1,f:11}},
+  pileciparizer:{e:'🍖',name:'Pileći parizer',cat:'meso',unit:'g',step:25,def:50,per:{kc:230,p:12,c:3,f:19}},
+  mortadela:{e:'🍖',name:'Mortadela',cat:'meso',unit:'g',step:25,def:50,per:{kc:311,p:16,c:3,f:25}},
+
+  // ===== RIBA (fish & seafood) =====
+  oslic:{e:'🐟',name:'Oslić (kuvani)',cat:'riba',unit:'g',step:50,def:150,per:{kc:90,p:18,c:0,f:2}},
+  brancin:{e:'🐟',name:'Brancin (na žaru)',cat:'riba',unit:'g',step:50,def:150,per:{kc:97,p:20,c:0,f:2}},
+  orada:{e:'🐟',name:'Orada (na žaru)',cat:'riba',unit:'g',step:50,def:150,per:{kc:100,p:20,c:0,f:2.5}},
+  skusa:{e:'🐟',name:'Skuša',cat:'riba',unit:'g',step:50,def:150,per:{kc:205,p:19,c:0,f:14}},
+  girice:{e:'🐟',name:'Girice (pržene)',cat:'riba',unit:'g',step:50,def:150,per:{kc:150,p:18,c:3,f:7}},
+  skampi:{e:'🦐',name:'Škampi',cat:'riba',unit:'g',step:50,def:150,per:{kc:99,p:21,c:1,f:1}},
+  lignje:{e:'🦑',name:'Lignje (na žaru)',cat:'riba',unit:'g',step:50,def:150,per:{kc:92,p:16,c:3,f:1.4}},
+  dagnje:{e:'🦪',name:'Dagnje',cat:'riba',unit:'g',step:50,def:150,per:{kc:86,p:12,c:4,f:2}},
+  pastrmka:{e:'🐟',name:'Pastrmka (na žaru)',cat:'riba',unit:'g',step:50,def:150,per:{kc:148,p:21,c:0,f:7}},
+  tunjevinasvjeza:{e:'🐟',name:'Tunjevina (svježa)',cat:'riba',unit:'g',step:50,def:150,per:{kc:130,p:28,c:0,f:1.3}},
+  bakalar:{e:'🐟',name:'Bakalar',cat:'riba',unit:'g',step:50,def:150,per:{kc:82,p:18,c:0,f:0.7}},
+  sardele:{e:'🐟',name:'Sardele (svježe)',cat:'riba',unit:'g',step:50,def:150,per:{kc:185,p:21,c:0,f:11}},
+  hobotnica:{e:'🐙',name:'Hobotnica',cat:'riba',unit:'g',step:50,def:150,per:{kc:82,p:15,c:2,f:1}},
+  dimljenilosos:{e:'🐟',name:'Dimljeni losos',cat:'riba',unit:'g',step:25,def:50,per:{kc:117,p:18,c:0,f:4.3}},
+  tunjevinaulju:{e:'🐟',name:'Tunjevina u ulju',cat:'riba',unit:'g',step:25,def:100,per:{kc:190,p:25,c:0,f:10}},
+
+  // ===== POVRĆE (vegetables) =====
+  plavipatlidzan:{e:'🍆',name:'Plavi patlidžan',cat:'povrće',unit:'g',step:50,def:150,per:{kc:25,p:1,c:6,f:0.2}},
+  karfiol:{e:'🥦',name:'Karfiol',cat:'povrće',unit:'g',step:50,def:150,per:{kc:25,p:2,c:5,f:0.3}},
+  cvekla:{e:'🫐',name:'Cvekla (kuvana)',cat:'povrće',unit:'g',step:50,def:100,per:{kc:44,p:1.6,c:10,f:0.2}},
+  rotkva:{e:'🥬',name:'Rotkva',cat:'povrće',unit:'g',step:50,def:100,per:{kc:16,p:0.7,c:3.4,f:0.1}},
+  blitva:{e:'🥬',name:'Blitva',cat:'povrće',unit:'g',step:50,def:150,per:{kc:19,p:1.8,c:3.7,f:0.2}},
+  praziluk:{e:'🥬',name:'Praziluk',cat:'povrće',unit:'g',step:50,def:100,per:{kc:61,p:1.5,c:14,f:0.3}},
+  tikva:{e:'🎃',name:'Tikva (bundeva)',cat:'povrće',unit:'g',step:50,def:150,per:{kc:26,p:1,c:6.5,f:0.1}},
+  pecurke:{e:'🍄',name:'Pečurke (šampinjoni)',cat:'povrće',unit:'g',step:50,def:150,per:{kc:22,p:3,c:3.3,f:0.3}},
+  vrganji:{e:'🍄',name:'Vrganji',cat:'povrće',unit:'g',step:50,def:150,per:{kc:34,p:3.7,c:5,f:0.5}},
+  paradajzceri:{e:'🍅',name:'Paradajz čeri',cat:'povrće',unit:'g',step:50,def:100,per:{kc:18,p:0.9,c:3.9,f:0.2}},
+  avokado:{e:'🥑',name:'Avokado',cat:'povrće',unit:'g',step:25,def:100,per:{kc:160,p:2,c:8.5,f:14.7}},
+  maslina:{e:'🫒',name:'Masline (crne)',cat:'povrće',unit:'g',step:25,def:50,per:{kc:115,p:0.8,c:6,f:11}},
+  rukola:{e:'🥬',name:'Rukola',cat:'povrće',unit:'g',step:25,def:50,per:{kc:25,p:2.6,c:3.7,f:0.7}},
+  celer:{e:'🥬',name:'Celer (stabljika)',cat:'povrće',unit:'g',step:50,def:100,per:{kc:16,p:0.7,c:3,f:0.2}},
+  korenceler:{e:'🥬',name:'Celer korijen',cat:'povrće',unit:'g',step:50,def:100,per:{kc:42,p:1.5,c:9,f:0.3}},
+  persun:{e:'🌿',name:'Peršun (list)',cat:'povrće',unit:'g',step:10,def:20,per:{kc:36,p:3,c:6,f:0.8}},
+  mladiluk:{e:'🧅',name:'Mladi luk',cat:'povrće',unit:'g',step:25,def:50,per:{kc:32,p:1.8,c:7,f:0.2}},
+  beliluk:{e:'🧄',name:'Beli luk',cat:'povrće',unit:'g',step:5,def:10,per:{kc:149,p:6.4,c:33,f:0.5}},
+  djumbir:{e:'🫚',name:'Đumbir',cat:'povrće',unit:'g',step:5,def:10,per:{kc:80,p:1.8,c:18,f:0.8}},
+  keleraba:{e:'🥬',name:'Keleraba',cat:'povrće',unit:'g',step:50,def:150,per:{kc:27,p:1.7,c:6,f:0.1}},
+  kelj:{e:'🥬',name:'Kelj',cat:'povrće',unit:'g',step:50,def:150,per:{kc:49,p:4.3,c:6,f:0.9}},
+  prokelj:{e:'🥬',name:'Prokelj (kelj pupčar)',cat:'povrće',unit:'g',step:50,def:150,per:{kc:43,p:3.4,c:6.5,f:0.3}},
+  boranija:{e:'🫛',name:'Boranija (mahune)',cat:'povrće',unit:'g',step:50,def:150,per:{kc:31,p:1.8,c:7,f:0.2}},
+  bamija:{e:'🥬',name:'Bamija',cat:'povrće',unit:'g',step:50,def:150,per:{kc:33,p:1.9,c:7,f:0.2}},
+  articoka:{e:'🌿',name:'Artičoka',cat:'povrće',unit:'g',step:50,def:100,per:{kc:47,p:3.3,c:8,f:0.2}},
+  sparoge:{e:'🥬',name:'Šparoge',cat:'povrće',unit:'g',step:50,def:150,per:{kc:20,p:2.2,c:3.9,f:0.1}},
+  ren:{e:'🌿',name:'Ren (rendani)',cat:'povrće',unit:'g',step:5,def:10,per:{kc:48,p:1.2,c:11,f:0.7}},
+  ljutapaprika:{e:'🌶️',name:'Ljuta paprika',cat:'povrće',unit:'g',step:10,def:20,per:{kc:40,p:1.9,c:9,f:0.4}},
+  kiselikupus:{e:'🥬',name:'Kiseli kupus',cat:'povrće',unit:'g',step:50,def:150,per:{kc:19,p:0.9,c:4.3,f:0.1}},
+  batat:{e:'🍠',name:'Batat (slatki krompir)',cat:'povrće',unit:'g',step:50,def:150,per:{kc:86,p:1.6,c:20,f:0.1}},
+
+  // ===== VOĆE (fruit) =====
+  sljiva:{e:'🫐',name:'Šljiva',cat:'voće',unit:'g',step:50,def:100,per:{kc:46,p:0.7,c:11,f:0.3}},
+  kajsija:{e:'🍑',name:'Kajsija',cat:'voće',unit:'g',step:50,def:100,per:{kc:48,p:1.4,c:11,f:0.4}},
+  smokva:{e:'🍈',name:'Smokva (svježa)',cat:'voće',unit:'g',step:25,def:100,per:{kc:74,p:0.8,c:19,f:0.3}},
+  tresnja:{e:'🍒',name:'Trešnja',cat:'voće',unit:'g',step:50,def:100,per:{kc:63,p:1,c:16,f:0.2}},
+  visnja:{e:'🍒',name:'Višnja',cat:'voće',unit:'g',step:50,def:100,per:{kc:50,p:1,c:12,f:0.3}},
+  nar:{e:'🍎',name:'Nar',cat:'voće',unit:'g',step:50,def:150,per:{kc:83,p:1.7,c:19,f:1.2}},
+  kivi:{e:'🥝',name:'Kivi',cat:'voće',unit:'g',step:50,def:100,per:{kc:61,p:1.1,c:15,f:0.5}},
+  mango:{e:'🥭',name:'Mango',cat:'voće',unit:'g',step:50,def:150,per:{kc:60,p:0.8,c:15,f:0.4}},
+  ananas:{e:'🍍',name:'Ananas',cat:'voće',unit:'g',step:50,def:150,per:{kc:50,p:0.5,c:13,f:0.1}},
+  mandarina:{e:'🍊',name:'Mandarina',cat:'voće',unit:'g',step:50,def:100,per:{kc:53,p:0.8,c:13,f:0.3}},
+  limun:{e:'🍋',name:'Limun',cat:'voće',unit:'g',step:25,def:50,per:{kc:29,p:1.1,c:6,f:0.3}},
+  malina:{e:'🫐',name:'Malina',cat:'voće',unit:'g',step:25,def:100,per:{kc:52,p:1.2,c:12,f:0.7}},
+  kupina:{e:'🫐',name:'Kupina',cat:'voće',unit:'g',step:25,def:100,per:{kc:43,p:1.4,c:10,f:0.5}},
+  dinja:{e:'🍈',name:'Dinja',cat:'voće',unit:'g',step:50,def:200,per:{kc:34,p:0.8,c:8,f:0.2}},
+  ribizla:{e:'🫐',name:'Ribizla',cat:'voće',unit:'g',step:25,def:100,per:{kc:56,p:1.4,c:14,f:0.2}},
+  brusnica:{e:'🫐',name:'Brusnica',cat:'voće',unit:'g',step:25,def:100,per:{kc:46,p:0.4,c:12,f:0.1}},
+  suvegrozdje:{e:'🍇',name:'Suvo grožđe',cat:'voće',unit:'g',step:25,def:50,per:{kc:299,p:3.1,c:71,f:0.5}},
+  suvesljive:{e:'🫐',name:'Suve šljive',cat:'voće',unit:'g',step:25,def:50,per:{kc:240,p:2.2,c:57,f:0.4}},
+  urme:{e:'🌴',name:'Urme (datule)',cat:'voće',unit:'g',step:25,def:50,per:{kc:282,p:2.5,c:68,f:0.4}},
+  kokos:{e:'🥥',name:'Kokos (svježi)',cat:'voće',unit:'g',step:25,def:50,per:{kc:354,p:3.3,c:6,f:33}},
+  grejpfrut:{e:'🍊',name:'Grejpfrut',cat:'voće',unit:'g',step:50,def:150,per:{kc:42,p:0.8,c:10,f:0.1}},
+  papaja:{e:'🥭',name:'Papaja',cat:'voće',unit:'g',step:50,def:150,per:{kc:43,p:0.5,c:11,f:0.3}},
+  nektarina:{e:'🍑',name:'Nektarina',cat:'voće',unit:'g',step:50,def:150,per:{kc:44,p:1.1,c:11,f:0.3}},
+  dunja:{e:'🍐',name:'Dunja',cat:'voće',unit:'g',step:50,def:150,per:{kc:57,p:0.4,c:15,f:0.1}},
+  aronija:{e:'🫐',name:'Aronija',cat:'voće',unit:'g',step:25,def:100,per:{kc:47,p:1.4,c:11,f:0.5}},
+
+  // ===== MLIJEČNO (dairy & eggs) =====
+  pavlaka:{e:'🥛',name:'Pavlaka (kisela)',cat:'mliječno',unit:'g',step:25,def:50,per:{kc:198,p:2.9,c:3.4,f:20}},
+  slatpavlaka:{e:'🥛',name:'Slatka pavlaka (za šlag)',cat:'mliječno',unit:'g',step:25,def:50,per:{kc:290,p:2.5,c:3,f:30}},
+  mlijeko28:{e:'🥛',name:'Mlijeko (2.8% mm)',cat:'mliječno',unit:'g',step:50,def:200,per:{kc:58,p:3.2,c:4.7,f:2.8}},
+  mlijekopunomasno:{e:'🥛',name:'Mlijeko (3.5% mm)',cat:'mliječno',unit:'g',step:50,def:200,per:{kc:64,p:3.3,c:4.7,f:3.6}},
+  posnisir:{e:'🧀',name:'Posni sir',cat:'mliječno',unit:'g',step:25,def:100,per:{kc:98,p:11,c:3.5,f:4.3}},
+  mladisir:{e:'🧀',name:'Mladi sir',cat:'mliječno',unit:'g',step:25,def:100,per:{kc:130,p:12,c:2,f:8}},
+  edamer:{e:'🧀',name:'Edamer',cat:'mliječno',unit:'g',step:25,def:50,per:{kc:357,p:25,c:1.4,f:28}},
+  gauda:{e:'🧀',name:'Gauda',cat:'mliječno',unit:'g',step:25,def:50,per:{kc:356,p:25,c:2.2,f:27}},
+  cheddar:{e:'🧀',name:'Čedar',cat:'mliječno',unit:'g',step:25,def:50,per:{kc:402,p:25,c:1.3,f:33}},
+  parmezan:{e:'🧀',name:'Parmezan',cat:'mliječno',unit:'g',step:10,def:25,per:{kc:392,p:36,c:3.2,f:26}},
+  puter:{e:'🧈',name:'Puter (maslac)',cat:'mliječno',unit:'g',step:5,def:10,per:{kc:717,p:0.9,c:0.1,f:81}},
+  belance:{e:'🥚',name:'Belance (jaje)',cat:'mliječno',unit:'kom',step:1,def:2,per:{kc:17,p:3.6,c:0.2,f:0.1}},
+  zumance:{e:'🥚',name:'Žumance (jaje)',cat:'mliječno',unit:'kom',step:1,def:1,per:{kc:55,p:2.7,c:0.6,f:4.5}},
+  jajekuvano:{e:'🥚',name:'Jaje (kuvano)',cat:'mliječno',unit:'kom',step:1,def:2,per:{kc:78,p:6.3,c:0.6,f:5.3}},
+  kefir:{e:'🥛',name:'Kefir',cat:'mliječno',unit:'g',step:50,def:200,per:{kc:55,p:3.3,c:4.5,f:2.5}},
+  surutka:{e:'🥛',name:'Surutka',cat:'mliječno',unit:'g',step:50,def:200,per:{kc:27,p:0.9,c:5,f:0.4}},
+  urda:{e:'🧀',name:'Urda (svježi sir)',cat:'mliječno',unit:'g',step:25,def:100,per:{kc:174,p:11,c:3,f:13}},
+  topljenisir:{e:'🧀',name:'Topljeni sir',cat:'mliječno',unit:'g',step:10,def:30,per:{kc:280,p:15,c:6,f:21}},
+  omlet:{e:'🍳',name:'Omlet',cat:'mliječno',unit:'porcija',step:1,def:1,per:{kc:220,p:14,c:2,f:17}},
+  kajgana:{e:'🍳',name:'Kajgana',cat:'mliječno',unit:'porcija',step:1,def:1,per:{kc:200,p:13,c:2,f:15}},
+
+  // ===== ŽITARICE (grains, bread, pasta) =====
+  integralnihljeb:{e:'🍞',name:'Integralni hljeb',cat:'žitarice',unit:'g',step:25,def:50,per:{kc:247,p:13,c:41,f:3.4}},
+  razenihljeb:{e:'🍞',name:'Raženi hljeb',cat:'žitarice',unit:'g',step:25,def:50,per:{kc:259,p:8.5,c:48,f:3.3}},
+  projinobrasno:{e:'🌽',name:'Projino brašno (kukuruzno)',cat:'žitarice',unit:'g',step:25,def:100,per:{kc:361,p:7,c:76,f:3.9}},
+  heljda:{e:'🌾',name:'Heljda (kuvana)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:92,p:3.4,c:20,f:0.6}},
+  bulgur:{e:'🌾',name:'Bulgur (kuvan)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:83,p:3,c:19,f:0.2}},
+  kuskus:{e:'🌾',name:'Kuskus (kuvan)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:112,p:3.8,c:23,f:0.2}},
+  palenta:{e:'🌽',name:'Palenta (kuvana)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:85,p:2,c:18,f:0.4}},
+  integralnatestenina:{e:'🍝',name:'Integralna testenina (kuvana)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:124,p:5,c:25,f:0.5}},
+  tortilja:{e:'🫓',name:'Tortilja (pšenična)',cat:'žitarice',unit:'g',step:25,def:60,per:{kc:310,p:8,c:52,f:7}},
+  kifla:{e:'🥐',name:'Kifla',cat:'žitarice',unit:'kom',step:1,def:1,per:{kc:200,p:6,c:34,f:4}},
+  pecivobelo:{e:'🥖',name:'Pecivo (belo)',cat:'žitarice',unit:'g',step:25,def:60,per:{kc:265,p:9,c:49,f:3.2}},
+  griz:{e:'🌾',name:'Griz (pšenični)',cat:'žitarice',unit:'g',step:25,def:50,per:{kc:360,p:12,c:73,f:1}},
+  pahuljicekukuruz:{e:'🥣',name:'Kukuruzne pahuljice',cat:'žitarice',unit:'g',step:25,def:40,per:{kc:357,p:7,c:84,f:0.9}},
+  rizaintegralni:{e:'🍚',name:'Integralni pirinač (kuvan)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:111,p:2.6,c:23,f:0.9}},
+  proso:{e:'🌾',name:'Proso (kuvano)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:119,p:3.5,c:24,f:1}},
+  jecam:{e:'🌾',name:'Ječam (kuvan)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:123,p:2.3,c:28,f:0.4}},
+  pirincanegalete:{e:'🍘',name:'Pirinčane galete',cat:'žitarice',unit:'g',step:10,def:20,per:{kc:387,p:8,c:82,f:2.8}},
+  lepinja:{e:'🫓',name:'Lepinja (somun)',cat:'žitarice',unit:'kom',step:1,def:1,per:{kc:270,p:9,c:53,f:2}},
+  bageta:{e:'🥖',name:'Bageta',cat:'žitarice',unit:'g',step:25,def:75,per:{kc:270,p:9,c:52,f:2.5}},
+  hljebbezglutena:{e:'🍞',name:'Hljeb bez glutena',cat:'žitarice',unit:'g',step:25,def:50,per:{kc:250,p:3,c:48,f:5}},
+
+  // ===== MAHUNARKE (legumes) =====
+  leblebija:{e:'🫘',name:'Leblebija (naut, kuvan)',cat:'mahunarke',unit:'g',step:50,def:150,per:{kc:164,p:8.9,c:27,f:2.6}},
+  crvenipasulj:{e:'🫘',name:'Crveni pasulj (kuvan)',cat:'mahunarke',unit:'g',step:50,def:150,per:{kc:127,p:8.7,c:23,f:0.5}},
+  socivo:{e:'🫘',name:'Sočivo (kuvano)',cat:'mahunarke',unit:'g',step:50,def:150,per:{kc:116,p:9,c:20,f:0.4}},
+  bob:{e:'🫘',name:'Bob (kuvan)',cat:'mahunarke',unit:'g',step:50,def:150,per:{kc:110,p:8,c:18,f:0.4}},
+  crnipasulj:{e:'🫘',name:'Crni pasulj (kuvan)',cat:'mahunarke',unit:'g',step:50,def:150,per:{kc:132,p:8.9,c:24,f:0.5}},
+  edamame:{e:'🫛',name:'Edamame',cat:'mahunarke',unit:'g',step:50,def:100,per:{kc:121,p:12,c:9,f:5}},
+  sojazrno:{e:'🫘',name:'Soja (zrno, kuvano)',cat:'mahunarke',unit:'g',step:50,def:100,per:{kc:173,p:17,c:10,f:9}},
+  tofu:{e:'🧊',name:'Tofu',cat:'mahunarke',unit:'g',step:50,def:100,per:{kc:76,p:8,c:1.9,f:4.8}},
+  humus:{e:'🥣',name:'Humus',cat:'mahunarke',unit:'g',step:25,def:50,per:{kc:166,p:8,c:14,f:10}},
+  zutigrasak:{e:'🫛',name:'Suvi grašak (kuvan)',cat:'mahunarke',unit:'g',step:50,def:150,per:{kc:118,p:8,c:21,f:0.4}},
+
+  // ===== ORAŠASTI (nuts & seeds) =====
+  ljesnik:{e:'🌰',name:'Lješnik',cat:'orašasti',unit:'g',step:10,def:30,per:{kc:628,p:15,c:7,f:61}},
+  indijskiorah:{e:'🥜',name:'Indijski orah',cat:'orašasti',unit:'g',step:10,def:30,per:{kc:553,p:18,c:27,f:44}},
+  pistaci:{e:'🥜',name:'Pistaći',cat:'orašasti',unit:'g',step:10,def:30,per:{kc:560,p:20,c:18,f:45}},
+  susam:{e:'🌱',name:'Susam (sjemenke)',cat:'orašasti',unit:'g',step:10,def:20,per:{kc:573,p:18,c:12,f:50}},
+  suncokret:{e:'🌻',name:'Suncokretove sjemenke',cat:'orašasti',unit:'g',step:10,def:30,per:{kc:584,p:21,c:11,f:51}},
+  bundevinesjemenke:{e:'🎃',name:'Bundevine sjemenke',cat:'orašasti',unit:'g',step:10,def:30,per:{kc:559,p:30,c:11,f:49}},
+  lan:{e:'🌱',name:'Lanene sjemenke',cat:'orašasti',unit:'g',step:5,def:15,per:{kc:534,p:18,c:29,f:42}},
+  chia:{e:'🌱',name:'Chia sjemenke',cat:'orašasti',unit:'g',step:5,def:15,per:{kc:486,p:17,c:42,f:31}},
+  makadamija:{e:'🥜',name:'Makadamija',cat:'orašasti',unit:'g',step:10,def:30,per:{kc:718,p:8,c:5,f:76}},
+  brazilskiorah:{e:'🌰',name:'Brazilski orah',cat:'orašasti',unit:'g',step:10,def:30,per:{kc:656,p:14,c:4,f:66}},
+  pekan:{e:'🥜',name:'Pekan orah',cat:'orašasti',unit:'g',step:10,def:30,per:{kc:691,p:9,c:4,f:72}},
+  kikirikiputer:{e:'🥜',name:'Puter od kikirikija',cat:'orašasti',unit:'g',step:10,def:30,per:{kc:588,p:25,c:12,f:50}},
+  tahini:{e:'🥣',name:'Tahini',cat:'orašasti',unit:'g',step:10,def:20,per:{kc:595,p:17,c:10,f:54}},
+
+  // ===== DODACI (oils, sauces, condiments) =====
+  maslinovoulje:{e:'🫒',name:'Maslinovo ulje',cat:'dodaci',unit:'kašika',step:1,def:1,per:{kc:119,p:0,c:0,f:13.5}},
+  suncokretovoulje:{e:'🌻',name:'Suncokretovo ulje',cat:'dodaci',unit:'kašika',step:1,def:1,per:{kc:120,p:0,c:0,f:13.6}},
+  majonez:{e:'🥚',name:'Majonez',cat:'dodaci',unit:'kašika',step:1,def:1,per:{kc:94,p:0.1,c:0.1,f:10}},
+  kecap:{e:'🍅',name:'Kečap',cat:'dodaci',unit:'kašika',step:1,def:1,per:{kc:17,p:0.2,c:4.5,f:0}},
+  senf:{e:'🌭',name:'Senf',cat:'dodaci',unit:'kašika',step:1,def:1,per:{kc:15,p:0.9,c:1.5,f:0.9}},
+  med:{e:'🍯',name:'Med',cat:'dodaci',unit:'kašika',step:1,def:1,per:{kc:64,p:0.1,c:17,f:0}},
+  pavlakazakuvanje:{e:'🥛',name:'Pavlaka za kuvanje',cat:'dodaci',unit:'g',step:25,def:50,per:{kc:195,p:2.5,c:3.5,f:20}},
+  sojinsos:{e:'🍶',name:'Sojin sos',cat:'dodaci',unit:'kašika',step:1,def:1,per:{kc:8,p:1.3,c:0.8,f:0}},
+  sirce:{e:'🍎',name:'Sirće (jabukovo)',cat:'dodaci',unit:'kašika',step:1,def:1,per:{kc:3,p:0,c:0.1,f:0}},
+  tartarsos:{e:'🥣',name:'Tartar sos',cat:'dodaci',unit:'kašika',step:1,def:1,per:{kc:75,p:0.2,c:2,f:7.5}},
+  pesto:{e:'🌿',name:'Pesto',cat:'dodaci',unit:'kašika',step:1,def:1,per:{kc:80,p:1.5,c:1,f:8}},
+  bbqsos:{e:'🍖',name:'Barbekju sos',cat:'dodaci',unit:'kašika',step:1,def:1,per:{kc:29,p:0.2,c:7,f:0.1}},
+  margarin:{e:'🧈',name:'Margarin',cat:'dodaci',unit:'g',step:5,def:10,per:{kc:717,p:0.2,c:0.7,f:80}},
+
+  // ===== SLATKO (sweets & desserts) =====
+  sladoled:{e:'🍨',name:'Sladoled (vanila)',cat:'slatko',unit:'g',step:25,def:100,per:{kc:207,p:3.5,c:24,f:11}},
+  puding:{e:'🍮',name:'Puding (čokolada)',cat:'slatko',unit:'g',step:25,def:150,per:{kc:130,p:3,c:22,f:3.5}},
+  kremabanana:{e:'🍌',name:'Krem banana',cat:'slatko',unit:'kom',step:1,def:1,per:{kc:110,p:0.8,c:16,f:5}},
+  tiramisu:{e:'🍰',name:'Tiramisu',cat:'slatko',unit:'porcija',step:1,def:1,per:{kc:283,p:5,c:30,f:15}},
+  cokoladnimafin:{e:'🧁',name:'Čokoladni mafin',cat:'slatko',unit:'kom',step:1,def:1,per:{kc:280,p:4,c:38,f:13}},
+  dzem:{e:'🍑',name:'Džem (od kajsije)',cat:'slatko',unit:'kašika',step:1,def:1,per:{kc:56,p:0.1,c:14,f:0}},
+  vafl:{e:'🧇',name:'Vafl',cat:'slatko',unit:'kom',step:1,def:1,per:{kc:130,p:2,c:18,f:5.5}},
+  cizkejk:{e:'🍰',name:'Čizkejk',cat:'slatko',unit:'porcija',step:1,def:1,per:{kc:350,p:6,c:30,f:23}},
+  sampita:{e:'🍰',name:'Šampita',cat:'slatko',unit:'kom',step:1,def:1,per:{kc:300,p:4,c:40,f:14}},
+  bombonijera:{e:'🍫',name:'Bombonijera (pralina)',cat:'slatko',unit:'kom',step:1,def:2,per:{kc:70,p:0.9,c:7,f:4.5}},
+  torta:{e:'🎂',name:'Torta (čokoladna)',cat:'slatko',unit:'porcija',step:1,def:1,per:{kc:370,p:5,c:50,f:17}},
+  napolitanke:{e:'🍫',name:'Napolitanke',cat:'slatko',unit:'g',step:25,def:50,per:{kc:520,p:5,c:62,f:28}},
+  lizalica:{e:'🍭',name:'Lizalica',cat:'slatko',unit:'kom',step:1,def:1,per:{kc:39,p:0,c:10,f:0}},
+  gumenebombone:{e:'🍬',name:'Gumene bombone',cat:'slatko',unit:'g',step:25,def:50,per:{kc:343,p:6.9,c:77,f:0.2}},
+
+  // ===== PIĆE (drinks) =====
+  cijedjenapomorandza:{e:'🍊',name:'Cijeđena pomorandža',cat:'piće',unit:'čaša',step:1,def:1,per:{kc:112,p:1.7,c:26,f:0.5}},
+  limunada:{e:'🍋',name:'Limunada',cat:'piće',unit:'čaša',step:1,def:1,per:{kc:100,p:0.2,c:26,f:0}},
+  smuti:{e:'🥤',name:'Smuti (voćni)',cat:'piće',unit:'čaša',step:1,def:1,per:{kc:150,p:2,c:35,f:0.5}},
+  energetskinapitak:{e:'🥤',name:'Energetski napitak',cat:'piće',unit:'čaša',step:1,def:1,per:{kc:112,p:0,c:28,f:0}},
+  mineralnavoda:{e:'💧',name:'Mineralna voda',cat:'piće',unit:'čaša',step:1,def:1,per:{kc:0,p:0,c:0,f:0}},
+  cajsamedom:{e:'🍵',name:'Čaj sa medom',cat:'piće',unit:'šolja',step:1,def:1,per:{kc:60,p:0.1,c:15,f:0}},
+  toplacokolada:{e:'🍫',name:'Topla čokolada',cat:'piće',unit:'šolja',step:1,def:1,per:{kc:190,p:8,c:27,f:6}},
+  milksejk:{e:'🥤',name:'Milkšejk (vanila)',cat:'piće',unit:'čaša',step:1,def:1,per:{kc:270,p:8,c:45,f:7}},
+  kokosovavoda:{e:'🥥',name:'Kokosova voda',cat:'piće',unit:'čaša',step:1,def:1,per:{kc:46,p:1.7,c:9,f:0.5}},
+  sokjabuka:{e:'🍎',name:'Sok od jabuke',cat:'piće',unit:'čaša',step:1,def:1,per:{kc:114,p:0.2,c:28,f:0.3}},
+  probiotik:{e:'🥛',name:'Probiotski napitak',cat:'piće',unit:'kom',step:1,def:1,per:{kc:71,p:1.5,c:12,f:1.5}},
+  bademovomlijeko:{e:'🥛',name:'Bademovo mlijeko',cat:'piće',unit:'čaša',step:1,def:1,per:{kc:40,p:1,c:3,f:2.5}},
+  sokcvekla:{e:'🥤',name:'Sok od cvekle',cat:'piće',unit:'čaša',step:1,def:1,per:{kc:100,p:2,c:22,f:0.2}},
+
+  // ===== DOMAĆE / JELA (cooked Balkan dishes) =====
+  podvarak:{e:'🍲',name:'Podvarak (kiseli kupus sa mesom)',cat:'domaće',unit:'g',step:50,def:250,per:{kc:130,p:7,c:6,f:9}},
+  punjenetikvice:{e:'🍲',name:'Punjene tikvice',cat:'jela',unit:'g',step:50,def:250,per:{kc:95,p:5,c:8,f:5}},
+  sataras:{e:'🍲',name:'Sataraš',cat:'domaće',unit:'g',step:50,def:200,per:{kc:70,p:1.8,c:7,f:4}},
+  telecacorba:{e:'🍲',name:'Teleća čorba',cat:'jela',unit:'g',step:50,def:300,per:{kc:45,p:4,c:3,f:2}},
+  pilecasupa:{e:'🍲',name:'Pileća supa',cat:'jela',unit:'g',step:50,def:300,per:{kc:38,p:3,c:3,f:1.5}},
+  pilav:{e:'🍚',name:'Pilav (sa piletinom)',cat:'jela',unit:'g',step:50,def:250,per:{kc:160,p:8,c:22,f:4}},
+  rizoto:{e:'🍚',name:'Rižoto (sa pečurkama)',cat:'jela',unit:'g',step:50,def:250,per:{kc:145,p:4,c:24,f:4}},
+  musakakrompir:{e:'🍲',name:'Musaka od krompira',cat:'jela',unit:'g',step:50,def:250,per:{kc:130,p:6,c:10,f:8}},
+  kapama:{e:'🍲',name:'Kapama (jagnjetina i spanać)',cat:'domaće',unit:'g',step:50,def:250,per:{kc:120,p:9,c:3,f:8}},
+  popara:{e:'🍲',name:'Popara',cat:'domaće',unit:'g',step:50,def:250,per:{kc:150,p:5,c:20,f:5.5}},
+  bosanskilonac:{e:'🍲',name:'Bosanski lonac',cat:'domaće',unit:'g',step:50,def:300,per:{kc:110,p:7,c:8,f:5.5}},
+  sogandolma:{e:'🧅',name:'Sogan dolma (punjeni luk)',cat:'domaće',unit:'g',step:50,def:250,per:{kc:115,p:4,c:12,f:6}},
+  punjenpatlidzan:{e:'🍆',name:'Punjeni patlidžan',cat:'jela',unit:'g',step:50,def:250,per:{kc:105,p:4,c:9,f:6}},
+  rizabizi:{e:'🍚',name:'Riži-bizi (pirinač sa graškom)',cat:'jela',unit:'g',step:50,def:200,per:{kc:130,p:4,c:24,f:2.5}},
+  djuvecpovrce:{e:'🍲',name:'Đuveč od povrća',cat:'jela',unit:'g',step:50,def:250,per:{kc:85,p:2.5,c:12,f:3}},
+  kuvanikupus:{e:'🍲',name:'Kuvani kupus (sa mesom)',cat:'jela',unit:'g',step:50,def:250,per:{kc:95,p:5,c:6,f:6}},
+  pasuljcorba:{e:'🍲',name:'Čorba od pasulja',cat:'jela',unit:'g',step:50,def:300,per:{kc:90,p:5,c:13,f:2}},
+  teleceperkelt:{e:'🍲',name:'Teleći perkelt',cat:'jela',unit:'g',step:50,def:250,per:{kc:140,p:12,c:4,f:8}},
+  pecenokrompir:{e:'🥔',name:'Pečeni krompir',cat:'jela',unit:'g',step:50,def:200,per:{kc:150,p:2.5,c:25,f:5}},
+  pirekrompir:{e:'🥔',name:'Pire krompir',cat:'jela',unit:'g',step:50,def:200,per:{kc:110,p:2,c:15,f:4.5}},
+  cuftesosu:{e:'🍲',name:'Ćufte u paradajz sosu',cat:'jela',unit:'g',step:50,def:250,per:{kc:150,p:9,c:7,f:9}},
+  bamijasamesom:{e:'🍲',name:'Bamija sa mesom',cat:'jela',unit:'g',step:50,def:250,per:{kc:110,p:8,c:6,f:6}},
+  grasakvarivo:{e:'🍲',name:'Varivo od graška',cat:'jela',unit:'g',step:50,def:250,per:{kc:95,p:5,c:12,f:3}},
+  krompirpaprikas:{e:'🍲',name:'Krompir paprikaš',cat:'jela',unit:'g',step:50,def:250,per:{kc:100,p:2.5,c:16,f:3}},
+  rizotomorski:{e:'🍚',name:'Rižoto sa plodovima mora',cat:'jela',unit:'g',step:50,def:250,per:{kc:150,p:7,c:23,f:3.5}},
+
+  // ===== BRZA HRANA (fast food, under jela) =====
+  hamburger:{e:'🍔',name:'Hamburger',cat:'jela',unit:'kom',step:1,def:1,per:{kc:295,p:17,c:30,f:12}},
+  hotdog:{e:'🌭',name:'Hot-dog',cat:'jela',unit:'kom',step:1,def:1,per:{kc:290,p:10,c:27,f:16}},
+  tortiljarolat:{e:'🌯',name:'Tortilja rolat (sa piletinom)',cat:'jela',unit:'kom',step:1,def:1,per:{kc:400,p:22,c:40,f:16}},
+  picaparce:{e:'🍕',name:'Pica parče (margarita)',cat:'jela',unit:'kom',step:1,def:1,per:{kc:270,p:11,c:33,f:10}},
+  pilecinagets:{e:'🍗',name:'Pileći nagetsi',cat:'jela',unit:'g',step:25,def:100,per:{kc:296,p:15,c:16,f:19}},
+  cizburger:{e:'🍔',name:'Čizburger',cat:'jela',unit:'kom',step:1,def:1,per:{kc:330,p:18,c:30,f:16}},
+  giros:{e:'🥙',name:'Giros (u lepinji)',cat:'jela',unit:'kom',step:1,def:1,per:{kc:590,p:30,c:55,f:27}},
+  ljutakrilca:{e:'🍗',name:'Ljuta pileća krilca',cat:'jela',unit:'g',step:50,def:150,per:{kc:290,p:26,c:4,f:19}}
+
 };
 const CATS=[['recent','🕘 Nedavno'],['fav','★ Omiljeno'],['moje','🧾 Moje'],['domaće','🏠 Domaća jela'],['često','Osnovno'],['povrće','🥗 Povrće'],['voće','🍎 Voće'],['meso','🍗 Meso/riba'],['mliječno','🧀 Mliječno'],['žitarice','🌾 Žitarice'],['grickalice','🥜 Grickalice'],['jela','🍔 Fast food'],['piće','Piće'],['alkohol','Alkohol']];
 function scale(f,qty){const k=f.unit==='g'?qty/100:qty;return{kc:Math.round(f.per.kc*k),p:Math.round(f.per.p*k),c:Math.round(f.per.c*k),f:Math.round(f.per.f*k)};}
@@ -2230,6 +2496,74 @@ async function sbLogout(){
   location.reload();                                   // vrati na početni ekran (onboarding / prijava)
 }
 
+/* ---- Zaboravljena lozinka (Supabase recovery) ---- */
+async function sbRecover(email){
+  const redirect=location.origin+location.pathname;
+  const r=await fetch(SB_URL+'/auth/v1/recover?redirect_to='+encodeURIComponent(redirect),{method:'POST',headers:_ah(false),body:JSON.stringify({email})});
+  if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(d.msg||d.error_description||d.error||('Greška ('+r.status+')')); }
+  return true;
+}
+function openReset(){
+  sheet(`<div class="grip"></div><h3>Zaboravljena lozinka</h3>
+    <p class="hint">Unesi email naloga — poslaćemo ti link za promjenu lozinke.</p>
+    <div class="fld"><label>Email</label><input id="rsEmail" type="email" placeholder="ti@email.com" autocomplete="email"></div>
+    <div id="rsMsg" style="font-size:13px;margin:2px 2px 8px;min-height:16px"></div>
+    <button class="cta" onclick="doReset()">Pošalji link</button>`);
+}
+async function doReset(){
+  const el=$('rsEmail'), msg=$('rsMsg'); const email=(el&&el.value||'').trim();
+  if(msg){ msg.style.color='#d3543f'; msg.textContent=''; }
+  if(!email){ if(msg) msg.textContent='Unesi email.'; return; }
+  try{ await sbRecover(email); if(msg){ msg.style.color='var(--green2)'; msg.textContent='Poslali smo ti email sa linkom. Provjeri poštu (i spam) pa postavi novu lozinku.'; } }
+  catch(e){ if(msg){ msg.style.color='#d3543f'; msg.textContent=e.message||'Greška. Pokušaj ponovo.'; } }
+}
+/* ---- Odricanje odgovornosti / uslovi ---- */
+function openDisclaimer(){
+  sheet(`<div class="grip"></div><h3>⚖️ Uslovi korišćenja i odricanje odgovornosti</h3>
+    <div style="font-size:13.5px;line-height:1.55;color:var(--fg);max-height:60vh;overflow:auto;padding:4px 2px 2px">
+      <p style="margin:8px 0"><b>Ajmo nije medicinski savjet.</b> Aplikacija Ajmo koristi vještačku inteligenciju (AI) koja daje procjene kalorija, makronutrijenata, planove ishrane i vježbe <b>isključivo na osnovu podataka koje ti sam uneseš</b> (težina, cilj, opis ili slika obroka i slično).</p>
+      <p style="margin:8px 0">Svi podaci, brojke i preporuke su <b>informativne i okvirne prirode</b> i mogu sadržati greške. Ajmo nije ljekar, nutricionista ni fitnes trener i ne zamjenjuje savjet stručnjaka.</p>
+      <p style="margin:8px 0">Prije nego što promijeniš ishranu, počneš dijetu, post ili program vježbanja — posebno ako imaš zdravstveno stanje, uzimaš terapiju, trudna si ili dojiš — <b>obavezno se posavjetuj sa ljekarom ili ovlašćenim nutricionistom.</b></p>
+      <p style="margin:8px 0">Korišćenjem aplikacije prihvataš da to činiš <b>na sopstvenu odgovornost</b> i da autori Ajmo aplikacije ne snose odgovornost za bilo kakve posljedice po zdravlje nastale korišćenjem aplikacije.</p>
+      <p style="margin:8px 0;color:var(--muted)">Ajmo · na našem jeziku, domaća jela.</p>
+    </div>
+    <button class="cta" style="margin-top:10px" onclick="closeSheet()">Razumijem</button>`);
+}
+/* korisnik stigao sa recovery linka (#access_token=...&type=recovery) */
+function checkRecovery(){
+  const h=location.hash||'';
+  if(h.indexOf('type=recovery')<0) return false;
+  try{
+    const p=new URLSearchParams(h.replace(/^#/,''));
+    const at=p.get('access_token'), rt=p.get('refresh_token');
+    if(!at) return false;
+    _setSess({access_token:at, refresh_token:rt||'', email:''});
+    try{ history.replaceState(null,'',location.pathname); }catch(e){}
+    openNewPw();
+    return true;
+  }catch(e){ return false; }
+}
+function openNewPw(){
+  sheet(`<div class="grip"></div><h3>Nova lozinka</h3>
+    <p class="hint">Postavi novu lozinku za svoj nalog.</p>
+    <div class="fld"><label>Nova lozinka</label><input id="npPw" type="password" placeholder="min. 6 karaktera" autocomplete="new-password"></div>
+    <div id="npMsg" style="font-size:13px;margin:2px 2px 8px;min-height:16px"></div>
+    <button class="cta" onclick="doNewPw()">Sačuvaj lozinku</button>`);
+}
+async function doNewPw(){
+  const el=$('npPw'), msg=$('npMsg'); const pw=(el&&el.value||'');
+  if(msg){ msg.style.color='#d3543f'; msg.textContent=''; }
+  if(pw.length<6){ if(msg) msg.textContent='Lozinka mora imati bar 6 karaktera.'; return; }
+  try{
+    let r=await fetch(SB_URL+'/auth/v1/user',{method:'PUT',headers:_ah(true),body:JSON.stringify({password:pw})});
+    if(r.status===401 && await sbRefresh()) r=await fetch(SB_URL+'/auth/v1/user',{method:'PUT',headers:_ah(true),body:JSON.stringify({password:pw})});
+    if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(d.msg||d.error_description||'Greška pri čuvanju.'); }
+    const d=await r.json().catch(()=>({})); const s=_sess()||{}; _setSess({access_token:s.access_token,refresh_token:s.refresh_token,email:(d&&d.email)||s.email});
+    closeSheet(); toast('Lozinka promijenjena ✓');
+    await cloudPull(); checkProStatus(); if(S.onboarded){ revealApp(); renderAll(); } else { renderStep(); }
+  }catch(e){ if(msg){ msg.style.color='#d3543f'; msg.textContent=e.message||'Greška. Pokušaj ponovo.'; } }
+}
+
 let _pushT=null,_pushing=false;
 function schedulePush(){ if(!loggedIn()||!navigator.onLine) return; clearTimeout(_pushT); _pushT=setTimeout(cloudPush,1600); }
 async function cloudPush(){
@@ -2274,9 +2608,13 @@ function openAuth(){
     <p class="hint">Napravi nalog da ti se podaci čuvaju i sinhronizuju preko svih uređaja.</p>
     <div class="fld"><label>Email</label><input id="auEmail" type="email" placeholder="ti@email.com" autocomplete="email"></div>
     <div class="fld"><label>Lozinka</label><input id="auPw" type="password" placeholder="min. 6 karaktera" autocomplete="current-password"></div>
+    <label style="display:flex;gap:9px;align-items:flex-start;margin:2px 2px 6px;cursor:pointer;font-size:12.5px;color:var(--muted);line-height:1.4">
+      <input id="auAgree" type="checkbox" style="margin-top:2px;flex:none;width:17px;height:17px;accent-color:var(--green2)">
+      <span>Prihvatam <a onclick="event.preventDefault();openDisclaimer()" style="color:var(--green2);font-weight:700;text-decoration:underline">Uslove korišćenja i odricanje odgovornosti</a> (Ajmo nije medicinski savjet).</span></label>
     <div id="auErr" style="color:#d3543f;font-size:13px;margin:2px 2px 8px;min-height:16px"></div>
-    <button class="cta" onclick="doAuth('login')">Prijavi se</button>
-    <button class="cta" style="background:var(--soft);color:var(--green2);margin-top:10px" onclick="doAuth('signup')">Napravi nalog</button>`);
+    <button class="cta" onclick="doAuth('signup')">Napravi nalog</button>
+    <button class="cta" style="background:var(--soft);color:var(--green2);margin-top:10px" onclick="doAuth('login')">Prijavi se</button>
+    <div style="text-align:center;margin-top:12px"><a onclick="openReset()" style="color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline">Zaboravljena lozinka?</a></div>`);
 }
 async function doAuth(mode){
   const emEl=$('auEmail'), pwEl=$('auPw'), err=$('auErr');
@@ -2284,6 +2622,7 @@ async function doAuth(mode){
   if(err){ err.style.color='#d3543f'; err.textContent=''; }
   if(!email||!pw){ if(err) err.textContent='Unesi email i lozinku.'; return; }
   if(pw.length<6){ if(err) err.textContent='Lozinka mora imati bar 6 karaktera.'; return; }
+  if(mode==='signup'){ const ag=$('auAgree'); if(!ag||!ag.checked){ if(err) err.textContent='Moraš prihvatiti uslove korišćenja da bi napravio nalog.'; return; } S.agreed=true; }
   try{
     if(mode==='signup'){
       await sbSignup(email,pw);

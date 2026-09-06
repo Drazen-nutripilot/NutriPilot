@@ -506,7 +506,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem" onclick="openDisclaimer()"><div class="ic">⚖️</div><div class="lb">Uslovi i odricanje odgovornosti</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.41 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.42 · demo</p>
     </div>
   </div>
 
@@ -841,10 +841,13 @@ function _completeOnboard(){
 const STORE='nutripilot_v1';
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
 function save(){ try{ localStorage.setItem(STORE, JSON.stringify(S)); }catch(e){} try{ schedulePush(); }catch(e){} }
+/* obriši stare keširane recepte/planove napravljene slabijim modelom (jednokratna migracija) */
+function bustCaches(){ if(S.recipeCacheVer!==2){ S.recipeCache={}; S.aiRecent=[]; S.recipeCacheVer=2; } }
 function load(){
   try{
     const raw=localStorage.getItem(STORE); if(!raw) return false;
     Object.assign(S, JSON.parse(raw));
+    bustCaches();
     // novi dan → resetuj dnevne brojače, ostalo (profil, istorija, navike) zadrži
     if(S.lastDate!==todayStr()){
       S.meals=[]; S.eaten={kcal:0,p:0,c:0,f:0}; S.water=0; S.steps=0;
@@ -1314,13 +1317,13 @@ const FOODS={
   svinjskavrat:{e:'🍖',name:'Svinjski vrat (pečeni)',cat:'meso',unit:'g',step:50,def:150,per:{kc:290,p:22,c:0,f:22}},
   svinjskarebra:{e:'🍖',name:'Svinjska rebra',cat:'meso',unit:'g',step:50,def:150,per:{kc:320,p:21,c:0,f:26}},
   svinjskapecenica:{e:'🍖',name:'Svinjska pečenica',cat:'meso',unit:'g',step:50,def:150,per:{kc:242,p:27,c:0,f:14}},
-  svinjskabuta:{e:'🍖',name:'Svinjska buta (pečena)',cat:'meso',unit:'g',step:50,def:150,per:{kc:210,p:29,c:0,f:10}},
+  svinjskabuta:{e:'🍖',name:'Svinjski but (pečeni)',cat:'meso',unit:'g',step:50,def:150,per:{kc:210,p:29,c:0,f:10}},
   mljevenomeso:{e:'🥩',name:'Mljeveno meso (mješano)',cat:'meso',unit:'g',step:50,def:150,per:{kc:250,p:18,c:0,f:20}},
   mljevenojunece:{e:'🥩',name:'Mljeveno juneće meso',cat:'meso',unit:'g',step:50,def:150,per:{kc:215,p:20,c:0,f:15}},
   sunka:{e:'🍖',name:'Šunka',cat:'meso',unit:'g',step:25,def:50,per:{kc:145,p:21,c:1,f:6}},
   slanina:{e:'🥓',name:'Slanina',cat:'meso',unit:'g',step:25,def:50,per:{kc:500,p:13,c:0,f:50}},
   kobasica:{e:'🌭',name:'Kobasica (pečena)',cat:'meso',unit:'g',step:50,def:100,per:{kc:300,p:15,c:2,f:26}},
-  hrenovke:{e:'🌭',name:'Hrenovke',cat:'meso',unit:'g',step:25,def:100,per:{kc:290,p:11,c:2,f:26}},
+  hrenovke:{e:'🌭',name:'Viršle',cat:'meso',unit:'g',step:25,def:100,per:{kc:290,p:11,c:2,f:26}},
   cevapkomad:{e:'🍖',name:'Ćevap (komad)',cat:'meso',unit:'kom',step:1,def:5,per:{kc:55,p:4,c:0.5,f:4}},
   dzigerica:{e:'🍖',name:'Pileća džigerica',cat:'meso',unit:'g',step:50,def:100,per:{kc:119,p:17,c:1,f:5}},
   junecidzigerica:{e:'🍖',name:'Juneća džigerica',cat:'meso',unit:'g',step:50,def:100,per:{kc:135,p:20,c:4,f:4}},
@@ -1364,7 +1367,7 @@ const FOODS={
   korenceler:{e:'🥬',name:'Celer korijen',cat:'povrće',unit:'g',step:50,def:100,per:{kc:42,p:1.5,c:9,f:0.3}},
   persun:{e:'🌿',name:'Peršun (list)',cat:'povrće',unit:'g',step:10,def:20,per:{kc:36,p:3,c:6,f:0.8}},
   mladiluk:{e:'🧅',name:'Mladi luk',cat:'povrće',unit:'g',step:25,def:50,per:{kc:32,p:1.8,c:7,f:0.2}},
-  beliluk:{e:'🧄',name:'Beli luk',cat:'povrće',unit:'g',step:5,def:10,per:{kc:149,p:6.4,c:33,f:0.5}},
+  beliluk:{e:'🧄',name:'Bijeli luk',cat:'povrće',unit:'g',step:5,def:10,per:{kc:149,p:6.4,c:33,f:0.5}},
   djumbir:{e:'🫚',name:'Đumbir',cat:'povrće',unit:'g',step:5,def:10,per:{kc:80,p:1.8,c:18,f:0.8}},
   keleraba:{e:'🥬',name:'Keleraba',cat:'povrće',unit:'g',step:50,def:150,per:{kc:27,p:1.7,c:6,f:0.1}},
   kelj:{e:'🥬',name:'Kelj',cat:'povrće',unit:'g',step:50,def:150,per:{kc:49,p:4.3,c:6,f:0.9}},
@@ -1372,10 +1375,10 @@ const FOODS={
   boranija:{e:'🫛',name:'Boranija (mahune)',cat:'povrće',unit:'g',step:50,def:150,per:{kc:31,p:1.8,c:7,f:0.2}},
   bamija:{e:'🥬',name:'Bamija',cat:'povrće',unit:'g',step:50,def:150,per:{kc:33,p:1.9,c:7,f:0.2}},
   articoka:{e:'🌿',name:'Artičoka',cat:'povrće',unit:'g',step:50,def:100,per:{kc:47,p:3.3,c:8,f:0.2}},
-  sparoge:{e:'🥬',name:'Šparoge',cat:'povrće',unit:'g',step:50,def:150,per:{kc:20,p:2.2,c:3.9,f:0.1}},
+  sparoge:{e:'🥬',name:'Šparogle',cat:'povrće',unit:'g',step:50,def:150,per:{kc:20,p:2.2,c:3.9,f:0.1}},
   ren:{e:'🌿',name:'Ren (rendani)',cat:'povrće',unit:'g',step:5,def:10,per:{kc:48,p:1.2,c:11,f:0.7}},
   ljutapaprika:{e:'🌶️',name:'Ljuta paprika',cat:'povrće',unit:'g',step:10,def:20,per:{kc:40,p:1.9,c:9,f:0.4}},
-  kiselikupus:{e:'🥬',name:'Kiseli kupus',cat:'povrće',unit:'g',step:50,def:150,per:{kc:19,p:0.9,c:4.3,f:0.1}},
+  kiselikupus:{e:'🥬',name:'Kisjeli kupus',cat:'povrće',unit:'g',step:50,def:150,per:{kc:19,p:0.9,c:4.3,f:0.1}},
   batat:{e:'🍠',name:'Batat (slatki krompir)',cat:'povrće',unit:'g',step:50,def:150,per:{kc:86,p:1.6,c:20,f:0.1}},
 
   // ===== VOĆE (fruit) =====
@@ -1417,7 +1420,7 @@ const FOODS={
   cheddar:{e:'🧀',name:'Čedar',cat:'mliječno',unit:'g',step:25,def:50,per:{kc:402,p:25,c:1.3,f:33}},
   parmezan:{e:'🧀',name:'Parmezan',cat:'mliječno',unit:'g',step:10,def:25,per:{kc:392,p:36,c:3.2,f:26}},
   puter:{e:'🧈',name:'Puter (maslac)',cat:'mliječno',unit:'g',step:5,def:10,per:{kc:717,p:0.9,c:0.1,f:81}},
-  belance:{e:'🥚',name:'Belance (jaje)',cat:'mliječno',unit:'kom',step:1,def:2,per:{kc:17,p:3.6,c:0.2,f:0.1}},
+  belance:{e:'🥚',name:'Bjelance (jaje)',cat:'mliječno',unit:'kom',step:1,def:2,per:{kc:17,p:3.6,c:0.2,f:0.1}},
   zumance:{e:'🥚',name:'Žumance (jaje)',cat:'mliječno',unit:'kom',step:1,def:1,per:{kc:55,p:2.7,c:0.6,f:4.5}},
   jajekuvano:{e:'🥚',name:'Jaje (kuvano)',cat:'mliječno',unit:'kom',step:1,def:2,per:{kc:78,p:6.3,c:0.6,f:5.3}},
   kefir:{e:'🥛',name:'Kefir',cat:'mliječno',unit:'g',step:50,def:200,per:{kc:55,p:3.3,c:4.5,f:2.5}},
@@ -1435,10 +1438,10 @@ const FOODS={
   bulgur:{e:'🌾',name:'Bulgur (kuvan)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:83,p:3,c:19,f:0.2}},
   kuskus:{e:'🌾',name:'Kuskus (kuvan)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:112,p:3.8,c:23,f:0.2}},
   palenta:{e:'🌽',name:'Palenta (kuvana)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:85,p:2,c:18,f:0.4}},
-  integralnatestenina:{e:'🍝',name:'Integralna testenina (kuvana)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:124,p:5,c:25,f:0.5}},
+  integralnatestenina:{e:'🍝',name:'Integralna tjestenina (kuvana)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:124,p:5,c:25,f:0.5}},
   tortilja:{e:'🫓',name:'Tortilja (pšenična)',cat:'žitarice',unit:'g',step:25,def:60,per:{kc:310,p:8,c:52,f:7}},
   kifla:{e:'🥐',name:'Kifla',cat:'žitarice',unit:'kom',step:1,def:1,per:{kc:200,p:6,c:34,f:4}},
-  pecivobelo:{e:'🥖',name:'Pecivo (belo)',cat:'žitarice',unit:'g',step:25,def:60,per:{kc:265,p:9,c:49,f:3.2}},
+  pecivobelo:{e:'🥖',name:'Pecivo (bijelo)',cat:'žitarice',unit:'g',step:25,def:60,per:{kc:265,p:9,c:49,f:3.2}},
   griz:{e:'🌾',name:'Griz (pšenični)',cat:'žitarice',unit:'g',step:25,def:50,per:{kc:360,p:12,c:73,f:1}},
   pahuljicekukuruz:{e:'🥣',name:'Kukuruzne pahuljice',cat:'žitarice',unit:'g',step:25,def:40,per:{kc:357,p:7,c:84,f:0.9}},
   rizaintegralni:{e:'🍚',name:'Integralni pirinač (kuvan)',cat:'žitarice',unit:'g',step:50,def:150,per:{kc:111,p:2.6,c:23,f:0.9}},
@@ -1501,7 +1504,7 @@ const FOODS={
   vafl:{e:'🧇',name:'Vafl',cat:'slatko',unit:'kom',step:1,def:1,per:{kc:130,p:2,c:18,f:5.5}},
   cizkejk:{e:'🍰',name:'Čizkejk',cat:'slatko',unit:'porcija',step:1,def:1,per:{kc:350,p:6,c:30,f:23}},
   sampita:{e:'🍰',name:'Šampita',cat:'slatko',unit:'kom',step:1,def:1,per:{kc:300,p:4,c:40,f:14}},
-  bombonijera:{e:'🍫',name:'Bombonijera (pralina)',cat:'slatko',unit:'kom',step:1,def:2,per:{kc:70,p:0.9,c:7,f:4.5}},
+  bombonijera:{e:'🍫',name:'Bombonjera (praline)',cat:'slatko',unit:'kom',step:1,def:2,per:{kc:70,p:0.9,c:7,f:4.5}},
   torta:{e:'🎂',name:'Torta (čokoladna)',cat:'slatko',unit:'porcija',step:1,def:1,per:{kc:370,p:5,c:50,f:17}},
   napolitanke:{e:'🍫',name:'Napolitanke',cat:'slatko',unit:'g',step:25,def:50,per:{kc:520,p:5,c:62,f:28}},
   lizalica:{e:'🍭',name:'Lizalica',cat:'slatko',unit:'kom',step:1,def:1,per:{kc:39,p:0,c:10,f:0}},
@@ -1523,7 +1526,7 @@ const FOODS={
   sokcvekla:{e:'🥤',name:'Sok od cvekle',cat:'piće',unit:'čaša',step:1,def:1,per:{kc:100,p:2,c:22,f:0.2}},
 
   // ===== DOMAĆE / JELA (cooked Balkan dishes) =====
-  podvarak:{e:'🍲',name:'Podvarak (kiseli kupus sa mesom)',cat:'domaće',unit:'g',step:50,def:250,per:{kc:130,p:7,c:6,f:9}},
+  podvarak:{e:'🍲',name:'Podvarak (kisjeli kupus sa mesom)',cat:'domaće',unit:'g',step:50,def:250,per:{kc:130,p:7,c:6,f:9}},
   punjenetikvice:{e:'🍲',name:'Punjene tikvice',cat:'jela',unit:'g',step:50,def:250,per:{kc:95,p:5,c:8,f:5}},
   sataras:{e:'🍲',name:'Sataraš',cat:'domaće',unit:'g',step:50,def:200,per:{kc:70,p:1.8,c:7,f:4}},
   telecacorba:{e:'🍲',name:'Teleća čorba',cat:'jela',unit:'g',step:50,def:300,per:{kc:45,p:4,c:3,f:2}},
@@ -1708,9 +1711,12 @@ async function makePlan(){
     renderPlan(meals,meals.reduce((a,m)=>a+m.kcal,0),true); unlockBadge('plan'); return;
   }
   try{
-    const r=await fetch('/api/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({targetKcal:S.target.kcal,protein:S.target.p,goal:GOALS[S.goal].t,seed:S.planIdx})});
+    const avoid=Array.isArray(S.aiRecent)?S.aiRecent.slice(-16):[];
+    const r=await fetch('/api/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({targetKcal:S.target.kcal,protein:S.target.p,goal:GOALS[S.goal].t,seed:S.planIdx,avoid})});
     if(!r.ok)throw new Error('server');
-    const data=await r.json(); renderPlan(data.meals,data.totalKcal); unlockBadge('plan');
+    const data=await r.json();
+    S.aiRecent=(S.aiRecent||[]).concat((data.meals||[]).map(m=>m.name)).slice(-24); save();
+    renderPlan(data.meals,data.totalKcal); unlockBadge('plan');
   }catch(e){
     const meals=scalePlanToTarget(genMealPlan(S.goal,S.planIdx));
     renderPlan(meals,meals.reduce((a,m)=>a+m.kcal,0),true); unlockBadge('plan');
@@ -2034,7 +2040,7 @@ const MEAL_POOLS={
       M('Kuvana jaja i integralni tost','🥚',280,22,24,10,ING(['Jaja','2 kom'],['Integralni tost','1 kriška'],['Krastavac','1/2 kom']),'Tvrdo kuvana jaja uz tost i povrće.'),
       M('Voćni smuti sa proteinom','🥤',250,25,26,3,ING(['Whey protein','1 mjerica'],['Voće (bobičasto)','100 g'],['Voda/mlijeko','250 ml']),'Sve izblenduj do glatke smjese.'),
       M('Jaja sa spanaćem i fetom','🍳',300,24,8,18,ING(['Jaja','2 kom'],['Spanać','80 g'],['Feta','30 g']),'Jaja sa dinstanim spanaćem i fetom.'),
-      M('Skyr sa chia i orasima','🥛',260,24,20,8,ING(['Skyr','200 g'],['Chia','1 kašika'],['Orasi','10 g']),'Skyr sa chia sjemenkama i orasima.'),
+      M('Skyr sa chia sjemenkama i orasima','🥛',260,24,20,8,ING(['Skyr','200 g'],['Chia','1 kašika'],['Orasi','10 g']),'Skyr sa chia sjemenkama i orasima.'),
       M('Chia puding sa voćem','🍮',240,14,26,8,ING(['Chia','2 kašike'],['Biljno mlijeko','200 ml'],['Voće','80 g']),'Chia puding ostavljen preko noći.'),
       M('Integralni tost sa sirom i paradajzom','🧀',290,20,28,10,ING(['Integralni tost','2 kriške'],['Posni sir','60 g'],['Paradajz','1 kom']),'Topli tost sa sirom i paradajzom.')],
     'Užina':[
@@ -2240,7 +2246,7 @@ const MEAL_POOLS={
       M('Suve smokve i bademi','🌰',200,5,30,8,ING(['Suve smokve','2 kom'],['Bademi','15 g']),'Suve smokve uz bademe.')],
     'Ručak':[
       M('Pasulj prebranac','🫘',480,20,60,14,ING(['Pasulj','200 g'],['Luk','1 kom'],['Ulje','1 kašika']),'Zapečeni posni prebranac.'),
-      M('Sarma posna (sa pirinčem)','🥬',420,10,60,14,ING(['Kiseli kupus','3 lista'],['Pirinač','120 g'],['Ulje','1 kašika']),'Posna sarma punjena pirinčem.'),
+      M('Sarma posna (sa pirinčem)','🥬',420,10,60,14,ING(['Kisjeli kupus','3 lista'],['Pirinač','120 g'],['Ulje','1 kašika']),'Posna sarma punjena pirinčem.'),
       M('Sočivo varivo','🍲',440,22,60,10,ING(['Sočivo','150 g'],['Šargarepa','80 g'],['Luk','1 kom']),'Gusto varivo od sočiva.'),
       M('Boranija sa krompirom','🫛',380,10,45,14,ING(['Boranija','200 g'],['Krompir','120 g'],['Paradajz','80 g']),'Posna boranija sa krompirom.'),
       M('Grašak sa krompirom','🍲',400,12,50,12,ING(['Grašak','200 g'],['Krompir','120 g']),'Varivo od graška (posno).'),
@@ -2260,7 +2266,7 @@ const MEAL_POOLS={
       M('Minestrone supa','🍲',300,12,45,7,ING(['Pasulj','80 g'],['Povrće','150 g'],['Testenina','40 g']),'Gusta minestrone supa.'),
       M('Pečeni krompir sa povrćem','🥔',360,8,55,12,ING(['Krompir','250 g'],['Paprika','100 g'],['Maslinovo ulje','1 kašika']),'Krompir i povrće iz rerne.'),
       M('Salata od nauta i povrća','🫛',350,14,40,12,ING(['Naut','150 g'],['Paradajz','100 g'],['Krastavac','80 g']),'Hranljiva salata od nauta.'),
-      M('Punjene tikvice povrćem','🥒',320,8,35,14,ING(['Tikvice','2 kom'],['Miješano povrće','120 g']),'Tikvice punjene povrćem.'),
+      M('Punjene tikvice sa povrćem','🥒',320,8,35,14,ING(['Tikvice','2 kom'],['Miješano povrće','120 g']),'Tikvice punjene povrćem.'),
       M('Đuveč od povrća','🍲',340,9,45,12,ING(['Miješano povrće','250 g'],['Pirinač','50 g']),'Lagani povrtni đuveč.'),
       M('Pirjano povrće sa tofuom','🍲',360,20,25,16,ING(['Tofu','150 g'],['Miješano povrće','150 g'],['Soja sos','1 kašika']),'Tofu i povrće u voku (posni protein).'),
       M('Prebranac (manja porcija)','🫘',360,16,45,10,ING(['Pasulj','150 g'],['Luk','1/2 kom']),'Manja porcija prebranca.'),
@@ -2590,6 +2596,7 @@ async function cloudPull(){
 function applyState(obj){
   try{
     Object.assign(S,obj);
+    bustCaches();
     if(S.lastDate!==todayStr()){ S.meals=[]; S.eaten={kcal:0,p:0,c:0,f:0}; S.water=0; S.steps=0; if(Array.isArray(S.weekKcal)) S.weekKcal[6]=0; S.lastDate=todayStr(); }
     recomputeEaten(); try{localStorage.setItem(STORE,JSON.stringify(S));}catch(e){} renderAll();
   }catch(e){}

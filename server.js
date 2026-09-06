@@ -131,6 +131,7 @@ const LANG_RULES = [
   'hljeb (ne „kruh“), sedmica (ne „tjedan“), kašika (ne „žlica“), viljuška (ne „vilica“), supa ili čorba (ne „juha“),',
   'pasulj (ne „grah“), naut (ne „slanutak“), šargarepa (ne „mrkva“), paradajz (ne „rajčica“), spanać (ne „špinat“),',
   'krompir (ne „krumpir“), pasta ili testenina (ne „tjestenina“), sirće (ne „ocat“), pavlaka (ne „vrhnje“),',
+  'integralni/integralno (npr. „integralni hljeb“, „integralni pirinač“) — NE piši „od cjelovitog zrna“ ni „cjelovito zrno“.',
   'narandža (ne „naranča“), pirinač ili riža, kuvati (ne „kuhati“), činija (ne „zdjela“).',
   'Koristi ijekavicu (mlijeko, bijelo, sjeme, dvije, brašno).',
   'NAZIVI JELA moraju biti JASNI, POTPUNI i sa velikim početnim slovom, kao u domaćoj kuhinji (npr. „Pileći file sa pirinčem i povrćem“, „Omlet sa sirom“, „Pasulj sa dimljenim mesom“). NE koristi puke jednorječne, nepotpune ni nejasne nazive (npr. ne „omleta“, ne „file“, ne „naut“ samo) — svaki naziv mora jasno opisati jelo.'
@@ -290,6 +291,7 @@ async function handleRecipe(reqBody, res) {
 async function handlePlan(reqBody, res) {
   if (!API_KEY) return json(res, 500, { error: 'Server nema ANTHROPIC_API_KEY.' });
   const { targetKcal, protein, goal, preferences, seed } = reqBody || {};
+  const avoid = Array.isArray(reqBody && reqBody.avoid) ? reqBody.avoid.filter(Boolean).slice(0, 24) : [];
   const kcal = targetKcal || 2000;
   const prompt =
     `Napravi plan obroka za jedan dan sa ukupno oko ${kcal} kcal (cilj: ${goal || 'održati'}). ` +
@@ -297,6 +299,8 @@ async function handlePlan(reqBody, res) {
     `Podijeli na 4 obroka: slot mora biti tačno "Doručak", "Užina", "Ručak" ili "Večera". ` +
     (preferences ? `Preferencije/ograničenja: ${preferences}. ` : '') +
     (seed ? `Ovo je varijanta #${seed} — obavezno predloži drugačija jela nego obično, za raznovrsnost. ` : '') +
+    (avoid.length ? `NE predlaži ponovo ova nedavno korišćena jela — izbjegni ih i biraj DRUGA: ${avoid.join('; ')}. ` : '') +
+    `VARIRAJ svaki obrok. Za UŽINU posebno biraj RAZLIČITE opcije iz dana u dan (npr. voće sa orasima, šaka badema ili lješnika, kuvano jaje, humus sa povrćem, skyr, proteinska pločica, sir sa paradajzom, integralni kreker) — NEMOJ predlagati grčki jogurt (ni jogurt) kao užinu, niti ijedno isto jelo, više puta zaredom. ` +
     `Prilagodi izbor cilju: za mršavljenje lakši i proteinski obroci, za dobijanje mase kalorijski gušći. ` +
     `Za SVAKI obrok obavezno navedi listu sastojaka sa tačnim količinama (npr. „Piletina 150 g", „Riža 80 g", „Maslinovo ulje 1 kašika"). ` +
     `Koristi uobičajene, dostupne namirnice (uklj. domaća jela). Uvijek koristi alat meal_plan.`;

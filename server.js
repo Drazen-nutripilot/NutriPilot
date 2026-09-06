@@ -444,6 +444,128 @@ async function handleLsWebhook(req, res){
 }
 
 /* ---------- server ---------- */
+/* ---------- pravne stranice (privatnost + uslovi) ---------- */
+function legalPage(title, inner) {
+  return `<!doctype html><html lang="sr-Latn-ME"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title} · Ajmo</title>
+<style>
+:root{--c:#ff5a3c;--ink:#1c1c1e;--mut:#6b6b70;--line:#ececf0;--bg:#fff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:720px;margin:0 auto;padding:22px 20px 60px}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#ff9a4d,#ff5a3c);display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px}
+h1{font-size:26px;margin:14px 0 2px}h2{font-size:18px;margin:26px 0 6px;color:var(--c)}
+.eff{color:var(--mut);font-size:13.5px;margin:0 0 8px}
+a{color:var(--c)}p,li{color:#2a2a2e}li{margin:4px 0}
+.back{display:inline-block;margin-bottom:14px;font-weight:700;text-decoration:none}
+.card{border:1px solid var(--line);border-radius:14px;padding:2px 16px 14px;margin-top:8px}
+footer{margin-top:34px;color:var(--mut);font-size:13px;border-top:1px solid var(--line);padding-top:14px}
+</style></head><body><div class="wrap">
+<a class="back" href="/">← Nazad na Ajmo</a>
+<div class="top"><div class="logo">🔥</div><b>Ajmo</b></div>
+${inner}
+<footer>Ajmo · Aqua elektro d.o.o. · <a href="mailto:info@aquaelektro.com">info@aquaelektro.com</a></footer>
+</div></body></html>`;
+}
+
+const PRIVACY_HTML = legalPage('Politika privatnosti', `
+<h1>Politika privatnosti</h1>
+<p class="eff">Stupa na snagu: 6. septembar 2026.</p>
+<p>Ova politika objašnjava koje podatke aplikacija <b>Ajmo</b> prikuplja, kako ih koristi i koja su tvoja prava. Rukovalac podacima je <b>Aqua elektro d.o.o.</b> (Crna Gora). Za sva pitanja o privatnosti piši na <a href="mailto:info@aquaelektro.com">info@aquaelektro.com</a>.</p>
+
+<h2>1. Koje podatke prikupljamo</h2>
+<ul>
+<li><b>Podaci naloga:</b> email adresa i lozinka. Lozinku čuva i štiti naš pružalac autentifikacije (Supabase) u kriptovanom obliku — mi je ne vidimo.</li>
+<li><b>Podaci profila:</b> ime (opciono), pol, godine, visina, težina, ciljna težina, nivo aktivnosti i cilj — koje unosiš da bismo izračunali tvoje dnevne kalorije.</li>
+<li><b>Podaci o ishrani i navikama:</b> obroci i kalorije, unos vode, koraci, vježbe, težina kroz vrijeme i period posta (fasting) — sve što sam bilježiš u aplikaciji.</li>
+<li><b>Slike hrane:</b> kada koristiš opciju „slikaj obrok", slika se šalje na AI analizu radi procjene kalorija. Sliku <b>ne čuvamo trajno</b> na svojim serverima.</li>
+<li><b>Tehnički podaci:</b> osnovni podaci neophodni za rad (npr. tip uređaja/pregledača). <b>Ne koristimo reklamne kolačiće ni praćenje trećih strana.</b></li>
+</ul>
+
+<h2>2. Kako koristimo podatke</h2>
+<p>Podatke koristimo isključivo da: aplikacija radi (izračun kalorija, AI planovi i recepti, praćenje napretka), da sinhronizujemo tvoje podatke preko uređaja, da obradimo pretplatu i da ti pružimo podršku. Ne prodajemo tvoje podatke.</p>
+
+<h2>3. Pravni osnov (GDPR)</h2>
+<p>Podatke obrađujemo na osnovu: izvršenja ugovora (pružanje usluge koju tražiš), tvoje saglasnosti (za podatke o ishrani/zdravlju koje unosiš i za slanje slika na AI analizu) i legitimnog interesa (bezbjednost i unapređenje usluge). Saglasnost možeš povući u svakom trenutku.</p>
+
+<h2>4. Dijeljenje sa trećim stranama (obrađivači)</h2>
+<p>Da bi aplikacija radila, koristimo pouzdane pružaoce usluga koji obrađuju podatke u naše ime:</p>
+<ul>
+<li><b>Supabase</b> — baza podataka, prijava i sinhronizacija naloga.</li>
+<li><b>Anthropic</b> — AI obrada teksta i slika (planovi, recepti, prepoznavanje hrane sa slike).</li>
+<li><b>Lemon Squeezy</b> — naplata pretplate kao „Merchant of Record"; oni obrađuju podatke o plaćanju. <b>Mi ne čuvamo brojeve kartica.</b></li>
+<li><b>OpenFoodFacts</b> — pretraga prehrambenih proizvoda po barkodu.</li>
+<li><b>Render</b> — hosting aplikacije.</li>
+</ul>
+<p>Pojedini obrađivači nalaze se van Crne Gore (npr. u SAD), uz odgovarajuće mjere zaštite podataka.</p>
+
+<h2>5. Čuvanje podataka</h2>
+<p>Tvoje podatke čuvamo dok god imaš aktivan nalog. Kada zatražiš brisanje naloga, brišemo tvoje lične podatke (osim onoga što smo zakonski dužni zadržati, npr. evidencija o plaćanju).</p>
+
+<h2>6. Tvoja prava</h2>
+<p>Imaš pravo na: pristup svojim podacima, ispravku, brisanje, ograničenje obrade, prigovor, prenosivost i povlačenje saglasnosti. Za ostvarivanje ovih prava, kao i za <b>brisanje naloga</b>, piši nam na <a href="mailto:info@aquaelektro.com">info@aquaelektro.com</a> i odgovorićemo u razumnom roku.</p>
+
+<h2>7. Bezbjednost</h2>
+<p>Podaci se prenose preko kriptovane veze (HTTPS), a lozinke su zaštićene kod pružaoca autentifikacije. Nijedan sistem nije 100% bezbjedan, ali preduzimamo razumne mjere zaštite.</p>
+
+<h2>8. Maloljetnici</h2>
+<p>Aplikacija nije namijenjena licima mlađim od 18 godina i ne prikupljamo svjesno njihove podatke.</p>
+
+<h2>9. Lokalno skladištenje</h2>
+<p>Koristimo lokalno skladište uređaja (localStorage) da bi aplikacija radila — npr. da ostaneš prijavljen i da zapamtimo tvoje postavke. Ne koristimo reklamne ni marketinške kolačiće.</p>
+
+<h2>10. Zdravstveno odricanje</h2>
+<p>Ajmo pruža okvirne, informativne procjene i <b>nije medicinski savjet</b>. Za zdravstvene odluke posavjetuj se sa ljekarom ili nutricionistom (vidi <a href="/uslovi">Uslove korišćenja</a>).</p>
+
+<h2>11. Izmjene politike</h2>
+<p>Politiku možemo s vremena na vrijeme ažurirati. O značajnim izmjenama obavijestićemo te u aplikaciji ili putem emaila.</p>
+
+<h2>12. Kontakt</h2>
+<p>Aqua elektro d.o.o. — <a href="mailto:info@aquaelektro.com">info@aquaelektro.com</a></p>
+`);
+
+const TERMS_HTML = legalPage('Uslovi korišćenja', `
+<h1>Uslovi korišćenja</h1>
+<p class="eff">Stupa na snagu: 6. septembar 2026.</p>
+<p>Korišćenjem aplikacije <b>Ajmo</b> prihvataš ove uslove. Aplikaciju pruža <b>Aqua elektro d.o.o.</b> (Crna Gora). Kontakt: <a href="mailto:info@aquaelektro.com">info@aquaelektro.com</a>.</p>
+
+<h2>1. Opis usluge</h2>
+<p>Ajmo je aplikacija za praćenje ishrane i kalorija koja koristi vještačku inteligenciju za procjene kalorija i makronutrijenata, izradu planova ishrane, recepata i praćenje napretka, na osnovu podataka koje uneseš.</p>
+
+<div class="card">
+<h2>2. Nije medicinski savjet</h2>
+<p>Sve procjene, brojke i preporuke su <b>informativne i okvirne</b> i mogu sadržati greške. Ajmo nije ljekar, nutricionista ni fitnes trener i ne zamjenjuje savjet stručnjaka. Prije promjene ishrane, dijete, posta ili programa vježbanja — posebno ako imaš zdravstveno stanje, uzimaš terapiju, trudna si ili dojiš — posavjetuj se sa ljekarom. Aplikaciju koristiš na <b>sopstvenu odgovornost</b>.</p>
+</div>
+
+<h2>3. Nalog</h2>
+<p>Za korišćenje je potrebno napraviti nalog sa tačnim podacima. Odgovoran/na si za čuvanje svoje lozinke i za sve aktivnosti na svom nalogu. Nalog je namijenjen licima od 18 godina i starijim.</p>
+
+<h2>4. Pretplata i naplata</h2>
+<p>Ajmo nudi besplatne funkcije i „Ajmo Pro" pretplatu sa dodatnim mogućnostima. Naplatu vrši naš partner <b>Lemon Squeezy</b> kao „Merchant of Record". Pretplata se <b>automatski obnavlja</b> na kraju perioda dok je ne otkažeš. Otkazati je možeš u svakom trenutku, a pristup Pro funkcijama traje do kraja plaćenog perioda. Povraćaj sredstava rješava se u skladu sa važećim propisima i politikom naplatnog partnera.</p>
+
+<h2>5. Prihvatljivo korišćenje</h2>
+<p>Slažeš se da nećeš zloupotrebljavati aplikaciju, pokušavati neovlašćen pristup, niti kopirati, preprodavati ili reprodukovati sadržaj i bazu bez dozvole.</p>
+
+<h2>6. Intelektualna svojina</h2>
+<p>Aplikacija, njen sadržaj, baza jela i brend „Ajmo" pripadaju Aqua elektro d.o.o. i zaštićeni su. Zadržavaš prava na podatke koje sam uneseš.</p>
+
+<h2>7. Ograničenje odgovornosti</h2>
+<p>U mjeri dozvoljenoj zakonom, Aqua elektro d.o.o. ne odgovara za bilo kakvu direktnu ili indirektnu štetu nastalu korišćenjem aplikacije, uključujući posljedice po zdravlje nastale oslanjanjem na procjene i preporuke aplikacije.</p>
+
+<h2>8. Prekid</h2>
+<p>Možeš prestati da koristiš aplikaciju u svakom trenutku. Zadržavamo pravo da suspendujemo nalog koji krši ove uslove.</p>
+
+<h2>9. Izmjene uslova</h2>
+<p>Uslove možemo ažurirati; o značajnim izmjenama obavijestićemo te u aplikaciji ili putem emaila. Nastavak korišćenja znači prihvatanje izmijenjenih uslova.</p>
+
+<h2>10. Mjerodavno pravo</h2>
+<p>Na ove uslove primjenjuje se pravo <b>Crne Gore</b>, uz nadležnost sudova u Crnoj Gori.</p>
+
+<h2>11. Kontakt</h2>
+<p>Aqua elektro d.o.o. — <a href="mailto:info@aquaelektro.com">info@aquaelektro.com</a></p>
+`);
+
 http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && req.url.startsWith('/api/health')) {
@@ -458,6 +580,14 @@ http.createServer(async (req, res) => {
     if (req.method === 'POST' && req.url.startsWith('/api/plan')) return handlePlan(await readBody(req), res);
     if (req.method === 'POST' && req.url.startsWith('/api/recipe')) return handleRecipe(await readBody(req), res);
     if (req.method === 'POST' && req.url.startsWith('/api/coach')) return handleCoach(await readBody(req), res);
+    if (req.method === 'GET' && ['/privatnost','/privacy','/politika-privatnosti'].includes(req.url.split('?')[0])) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control':'no-cache' });
+      return res.end(PRIVACY_HTML);
+    }
+    if (req.method === 'GET' && ['/uslovi','/terms','/uslovi-koriscenja'].includes(req.url.split('?')[0])) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control':'no-cache' });
+      return res.end(TERMS_HTML);
+    }
     if (req.method === 'GET' && req.url.split('?')[0] === '/manifest.webmanifest') {
       res.writeHead(200, { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control':'no-cache' });
       return res.end(MANIFEST);

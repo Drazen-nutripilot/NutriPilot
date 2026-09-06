@@ -504,9 +504,11 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem"><div class="ic">⭐</div><div class="lb">Ocijeni aplikaciju</div><div class="rt">›</div></div>
         <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
         <div class="pitem" onclick="openDisclaimer()"><div class="ic">⚖️</div><div class="lb">Uslovi i odricanje odgovornosti</div><div class="rt">›</div></div>
+        <div class="pitem" onclick="window.open('/uslovi','_blank')"><div class="ic">📄</div><div class="lb">Uslovi korišćenja</div><div class="rt">›</div></div>
+        <div class="pitem" onclick="window.open('/privatnost','_blank')"><div class="ic">🔒</div><div class="lb">Politika privatnosti</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.42 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.43 · demo</p>
     </div>
   </div>
 
@@ -2617,7 +2619,7 @@ function openAuth(){
     <div class="fld"><label>Lozinka</label><input id="auPw" type="password" placeholder="min. 6 karaktera" autocomplete="current-password"></div>
     <label style="display:flex;gap:9px;align-items:flex-start;margin:2px 2px 6px;cursor:pointer;font-size:12.5px;color:var(--muted);line-height:1.4">
       <input id="auAgree" type="checkbox" style="margin-top:2px;flex:none;width:17px;height:17px;accent-color:var(--green2)">
-      <span>Prihvatam <a onclick="event.preventDefault();openDisclaimer()" style="color:var(--green2);font-weight:700;text-decoration:underline">Uslove korišćenja i odricanje odgovornosti</a> (Ajmo nije medicinski savjet).</span></label>
+      <span>Prihvatam <a href="/uslovi" target="_blank" style="color:var(--green2);font-weight:700;text-decoration:underline">Uslove korišćenja</a> i <a href="/privatnost" target="_blank" style="color:var(--green2);font-weight:700;text-decoration:underline">Politiku privatnosti</a> (Ajmo nije medicinski savjet).</span></label>
     <div id="auErr" style="color:#d3543f;font-size:13px;margin:2px 2px 8px;min-height:16px"></div>
     <button class="cta" onclick="doAuth('signup')">Napravi nalog</button>
     <button class="cta" style="background:var(--soft);color:var(--green2);margin-top:10px" onclick="doAuth('login')">Prijavi se</button>

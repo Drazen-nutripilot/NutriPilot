@@ -508,7 +508,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem" onclick="window.open('/privatnost','_blank')"><div class="ic">🔒</div><div class="lb">Politika privatnosti</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.43 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.44 · demo</p>
     </div>
   </div>
 
@@ -743,7 +743,7 @@ const STEPS=[
     <div style="text-align:left;background:var(--card2);border-radius:16px;padding:14px 18px;margin:12px 0">
       ${['Neograničeno slikanje obroka (AI)','Detaljni planovi ishrane + posni set','Planovi treninga po cilju i polu','Napredna analiza i projekcija do cilja','Bez reklama'].map(f=>`<div style="display:flex;gap:10px;align-items:flex-start;margin:9px 0"><span style="color:var(--green2);font-weight:800">✓</span><span style="font-size:14px">${f}</span></div>`).join('')}
     </div>
-    <div style="font-weight:800;font-size:20px">€22.99 <span style="color:var(--muted);font-weight:600;font-size:14px">/ godišnje (≈ €1.9/mj)</span></div>
+    <div style="font-weight:800;font-size:20px">€24.99 <span style="color:var(--muted);font-weight:600;font-size:14px">/ godišnje (≈ €2.08/mj)</span></div>
     <p class="sub" style="margin:4px 0 12px">Počni sa <b>3 dana besplatno</b> — otkaži bilo kad.</p>
     <button class="cta" onclick="payHook()">Počni — 3 dana besplatno</button>
     <div style="margin-top:12px"><a onclick="finishOnboard()" style="color:var(--muted);font-size:13px;cursor:pointer">Nastavi sa besplatnom verzijom</a></div></div>`
@@ -2444,11 +2444,11 @@ function openPaywall(){
       <div><span class="ck">✓</span> Bez reklama, sinhronizacija uređaja</div></div>
     <div class="plans" id="plans">
       <div class="plan sel" data-p="year" onclick="pickPlan('year')"><div class="rd"></div>
-        <div><div class="pn">Godišnje</div><div class="pd">22,99€/god</div></div>
-        <div class="pp"><b>1,90€</b><span>/ mjesec</span></div></div>
+        <div><div class="pn">Godišnje</div><div class="pd">24,99€/god</div></div>
+        <div class="pp"><b>2,08€</b><span>/ mjesec</span></div></div>
       <div class="plan" data-p="month" onclick="pickPlan('month')"><div class="rd"></div>
         <div><div class="pn">Mjesečno</div><div class="pd">Otkaži bilo kada</div></div>
-        <div class="pp"><b>3,99€</b><span>/ mjesec</span></div></div></div>
+        <div class="pp"><b>4,99€</b><span>/ mjesec</span></div></div></div>
     <button class="buy" onclick="buyPro()">Počni 3 dana besplatno</button>
     <p class="tiny">Naplatu bezbjedno obrađuje Lemon Squeezy · otkaži bilo kad.</p>`,true);
 }

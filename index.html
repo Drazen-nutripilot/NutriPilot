@@ -509,7 +509,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem" onclick="window.open('/privatnost','_blank')"><div class="ic">🔒</div><div class="lb">Politika privatnosti</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.45 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.46 · demo</p>
     </div>
   </div>
 
@@ -1133,9 +1133,9 @@ function openWorkout(){ _wsel=0; sheet(`<div class="grip"></div><h3>🏃 Dodaj v
   _actGrid(); wPrev();
 }
 function _actGrid(){ const g=$('actGrid'); if(!g) return;
-  g.innerHTML=WORK_ACTS.map((a,i)=>`<button onclick="pickAct(${i})" style="border:none;cursor:pointer;border-radius:14px;padding:9px 12px;font-size:13px;font-weight:800;display:flex;align-items:center;gap:6px;background:${i===_wsel?'var(--green2)':'var(--soft)'};color:${i===_wsel?'#fff':'var(--green2)'}"><span style="font-size:16px">${a.e}</span>${a.n}</button>`).join('');
+  g.innerHTML=WORK_ACTS.map((a,i)=>`<button onclick="pickWAct(${i})" style="border:none;cursor:pointer;border-radius:14px;padding:9px 12px;font-size:13px;font-weight:800;display:flex;align-items:center;gap:6px;background:${i===_wsel?'var(--green2)':'var(--soft)'};color:${i===_wsel?'#fff':'var(--green2)'}"><span style="font-size:16px">${a.e}</span>${a.n}</button>`).join('');
 }
-function pickAct(i){ _wsel=i; _actGrid(); wPrev(); }
+function pickWAct(i){ _wsel=i; _actGrid(); wPrev(); }
 function wMin(d){ const el=$('wMinIn'); el.value=Math.max(0,(+el.value||0)+d); wPrev(); }
 function wPrev(){ const min=+($('wMinIn')||{}).value||0; const k=_calcKcal(WORK_ACTS[_wsel].met,min); const el=$('wKcal'); if(el) el.textContent=k; }
 function saveWorkout(){ const min=Math.max(1,+($('wMinIn')||{}).value||0); const a=WORK_ACTS[_wsel];

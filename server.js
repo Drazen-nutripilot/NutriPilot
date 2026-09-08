@@ -34,6 +34,7 @@ function toLatin(s){ if(s==null) return s; if(typeof s!=='string') return s; let
 function latItems(arr){ return Array.isArray(arr) ? arr.map(x=> typeof x==='string' ? toLatin(x) : (x&&typeof x==='object' ? Object.fromEntries(Object.entries(x).map(([k,v])=>[k, typeof v==='string'?toLatin(v):v])) : x)) : arr; }
 const PORT = process.env.PORT || 3000;
 const LS_WEBHOOK_SECRET = process.env.LS_WEBHOOK_SECRET || '';
+const PADDLE_WEBHOOK_SECRET = process.env.PADDLE_WEBHOOK_SECRET || '';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://xqilhefgmygylpnkzqjd.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 const PUBLIC = __dirname; // servira iz korijena (nema potrebe za public/ folderom)
@@ -443,6 +444,38 @@ async function handleLsWebhook(req, res){
   }catch(e){ console.error('LS webhook err:', e && e.message || e); res.writeHead(200); return res.end('ok'); }
 }
 
+/* ---------- Paddle webhook (pretplate → pro_users) ---------- */
+async function handlePaddleWebhook(req, res){
+  try{
+    const raw = await readRaw(req);
+    const sig = req.headers['paddle-signature'] || '';
+    // Paddle-Signature: ts=...;h1=...
+    const parts = {};
+    sig.split(';').forEach(kv=>{ const i=kv.indexOf('='); if(i>0) parts[kv.slice(0,i).trim()]=kv.slice(i+1).trim(); });
+    const ts = parts.ts, h1 = parts.h1;
+    if(PADDLE_WEBHOOK_SECRET){
+      if(!ts || !h1){ res.writeHead(400); return res.end('missing signature'); }
+      const hmac = crypto.createHmac('sha256', PADDLE_WEBHOOK_SECRET).update(ts + ':' + raw).digest('hex');
+      if(hmac !== h1){ console.error('Paddle bad signature'); res.writeHead(400); return res.end('bad signature'); }
+    }
+    const evt = JSON.parse(raw || '{}');
+    const type = evt.event_type || '';
+    const data = evt.data || {};
+    const email = (data.custom_data && data.custom_data.email) ? String(data.custom_data.email).toLowerCase() : '';
+    let active = null;
+    if(type.indexOf('subscription.') === 0){
+      const st = data.status || '';
+      active = ['active','trialing','past_due'].includes(st); // aktivan i tokom probnog perioda
+    } else if(type === 'transaction.completed'){
+      active = true;
+    }
+    if(email && active !== null && SUPABASE_SERVICE_KEY){
+      await sbAdmin('pro_users?on_conflict=email', 'POST', [{ email, active, updated_at: new Date().toISOString() }]);
+    }
+    res.writeHead(200, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ ok:true }));
+  }catch(e){ console.error('Paddle webhook err:', e && e.message || e); res.writeHead(200); return res.end('ok'); }
+}
+
 /* ---------- server ---------- */
 /* ---------- pravne stranice (privatnost + uslovi) ---------- */
 function legalPage(title, inner) {
@@ -576,6 +609,7 @@ http.createServer(async (req, res) => {
       return handleBarcode(code, res);
     }
     if (req.method === 'POST' && req.url.startsWith('/api/ls-webhook')) return handleLsWebhook(req, res);
+    if (req.method === 'POST' && req.url.startsWith('/api/paddle-webhook')) return handlePaddleWebhook(req, res);
     if (req.method === 'POST' && req.url.startsWith('/api/estimate')) return handleEstimate(await readBody(req), res);
     if (req.method === 'POST' && req.url.startsWith('/api/plan')) return handlePlan(await readBody(req), res);
     if (req.method === 'POST' && req.url.startsWith('/api/recipe')) return handleRecipe(await readBody(req), res);

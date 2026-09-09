@@ -502,6 +502,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
       </div>
       <div class="plist">
         <div class="pitem" onclick="openBook()"><div class="ic">📖</div><div class="lb">Knjiga recepata</div><div class="rt">›</div></div>
+        <div class="pitem" onclick="openShop()"><div class="ic">🛒</div><div class="lb">Lista za kupovinu</div><div class="rt" id="pShop">›</div></div>
         <div class="pitem" onclick="openAchievements()"><div class="ic">🏆</div><div class="lb">Postignuća</div><div class="rt" id="pBadges">—<span>›</span></div></div>
         <div class="pitem" onclick="openEdit()"><div class="ic">🎯</div><div class="lb">Cilj i podaci</div><div class="rt" id="pTarget">—<span>›</span></div></div>
         <div class="pitem"><div class="ic">📏</div><div class="lb">Jedinice</div><div class="rt">Metričke (kg, cm)</div></div>
@@ -517,7 +518,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem" onclick="window.open('/privatnost','_blank')"><div class="ic">🔒</div><div class="lb">Politika privatnosti</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.49 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.50 · demo</p>
     </div>
   </div>
 
@@ -1066,6 +1067,7 @@ function renderProfile(){
   const _li=loggedIn();
   if($('acctLb')) $('acctLb').textContent=_li?((_sess()||{}).email||'Nalog'):'Prijava / Registracija';
   if($('acctRt')) $('acctRt').innerHTML=(_li?'Sinhronizovano ✓':'Sinhronizuj')+' <span>›</span>';
+  updateShopBadge();
   save();
 }
 
@@ -1607,7 +1609,8 @@ function addRecipeToShop(id){
     else { l.push({item:x.item, amount:x.amount||'', done:false, custom:true}); idx[key]=l.length-1; added++; }
   });
   save(); try{ if(document.getElementById('shopList')) renderShop(); }catch(e){}
-  try{ toast(added ? ('Dodato u kupovinu: '+added+' 🛒') : 'Sastojci su već na listi ✓'); }catch(e){}
+  try{ toast(added ? ('Dodato u kupovinu 🛒 — vidi u Profil → Lista za kupovinu') : 'Sastojci su već na listi ✓'); }catch(e){}
+  try{ if(typeof updateShopBadge==='function') updateShopBadge(); }catch(e){}
 }
 
 /* ================= NAV ================= */
@@ -2283,6 +2286,7 @@ async function openRecipe(i){
 
 /* ================= LISTA ZA KUPOVINU ================= */
 function _shop(){ if(!Array.isArray(S.shop)) S.shop=[]; return S.shop; }
+function updateShopBadge(){ const el=$('pShop'); if(!el) return; const left=_shop().filter(x=>!x.done).length; el.innerHTML=(left>0?('<b style="color:var(--green2)">'+left+'</b> '):'')+'<span>›</span>'; }
 function buildShopFromPlan(){
   if(!_lastPlan.length){ toast('Prvo napravi plan ishrane.'); return; }
   const prev=_shop(); const doneMap={}; prev.forEach(it=>{ if(it.done) doneMap[(it.item||'').toLowerCase()]=true; });
@@ -2330,6 +2334,7 @@ function renderShop(){
       <button onclick="delShop(${i})" style="flex:none;border:none;background:none;color:var(--muted);font-size:15px;cursor:pointer;padding:2px 4px">✕</button>
     </div>`).join('');
   el.innerHTML=`<div style="font-size:12px;color:var(--muted);margin:2px 2px 6px">${left} za kupovinu · ${l.length} ukupno</div>${rows}${btns}`;
+  try{ updateShopBadge(); }catch(e){}
 }
 
 /* prebacivanje Ishrana / Trening */

@@ -201,6 +201,7 @@ body.dark .pcard .av{background:linear-gradient(135deg,#1c3a29,#173021)}
 /* sheet / modal */
 .mask{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30;display:flex;align-items:flex-end;justify-content:center;animation:fade .2s ease}
 .mask.c{align-items:center}
+.book{position:fixed;inset:0;background:var(--bg);z-index:40;overflow-y:auto;-webkit-overflow-scrolling:touch;animation:fade .2s ease;max-width:520px;margin:0 auto}
 .sheet{width:100%;max-width:460px;background:var(--card);border-radius:26px 26px 0 0;padding:22px 20px calc(24px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto;animation:up .28s cubic-bezier(.2,.9,.3,1)}
 @keyframes up{from{transform:translateY(100%)}to{transform:none}}
 .sheet .grip{width:40px;height:5px;border-radius:99px;background:var(--line);margin:0 auto 14px}
@@ -432,6 +433,12 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
 
       <div id="workCard" style="background:var(--card);border-radius:22px;padding:16px 18px;box-shadow:var(--shadow);margin-bottom:18px"></div>
 
+      <div onclick="openBook()" style="display:flex;align-items:center;gap:14px;background:var(--card);border-radius:22px;padding:16px 18px;box-shadow:var(--shadow);margin-bottom:18px;cursor:pointer">
+        <div style="width:44px;height:44px;border-radius:14px;background:#fdeede;display:flex;align-items:center;justify-content:center;font-size:24px;flex:none">📖</div>
+        <div style="flex:1;min-width:0"><b style="font-size:16px">Knjiga recepata</b><div style="font-size:12.5px;color:var(--muted);margin-top:2px">Domaći i fit recepti korak-po-korak</div></div>
+        <div style="color:var(--muted);font-size:22px">›</div>
+      </div>
+
       <div class="coachcard" onclick="openCoach()">
         <div class="rob">🤖</div>
         <div class="tx" id="coachMsg">Spreman sam da ti pomognem danas.</div>
@@ -494,6 +501,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <button onclick="openPaywall()">Nadogradi</button>
       </div>
       <div class="plist">
+        <div class="pitem" onclick="openBook()"><div class="ic">📖</div><div class="lb">Knjiga recepata</div><div class="rt">›</div></div>
         <div class="pitem" onclick="openAchievements()"><div class="ic">🏆</div><div class="lb">Postignuća</div><div class="rt" id="pBadges">—<span>›</span></div></div>
         <div class="pitem" onclick="openEdit()"><div class="ic">🎯</div><div class="lb">Cilj i podaci</div><div class="rt" id="pTarget">—<span>›</span></div></div>
         <div class="pitem"><div class="ic">📏</div><div class="lb">Jedinice</div><div class="rt">Metričke (kg, cm)</div></div>
@@ -509,7 +517,7 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
         <div class="pitem" onclick="window.open('/privatnost','_blank')"><div class="ic">🔒</div><div class="lb">Politika privatnosti</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.47 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.48 · demo</p>
     </div>
   </div>
 
@@ -1170,6 +1178,422 @@ function renderWorkout(){ const el=$('workCard'); if(!el) return;
   }
   el.innerHTML=head+body;
 }
+
+
+const RECIPES=[
+  {id:'dorucak-omlet-sir', name:'Omlet sa sirom i povrćem', e:'🍳', cat:'Doručak', time:10, diff:'Lako', servings:1, kcal:320, p:24, c:8, f:22, free:true,
+    ingredients:[{item:'Jaja',amount:'3 kom'},{item:'Sir (posni)',amount:'40 g'},{item:'Paprika',amount:'1/2 kom'},{item:'Ulje',amount:'1 kašika'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Umuti jaja sa prstohvatom soli i bibera.','Nasjeckaj papriku i kratko je prodinstaj na malo ulja.','Sipaj jaja preko povrća i pospi izmrvljeni sir.','Peci na laganoj vatri dok se omlet ne stegne, pa presavij na pola.'],
+    tip:'Posluži uz krišku integralnog hljeba za više energije.'},
+
+  {id:'dorucak-ovsena-kasa', name:'Ovsena kaša sa bananom i orasima', e:'🥣', cat:'Doručak', time:12, diff:'Lako', servings:1, kcal:370, p:12, c:50, f:14,
+    ingredients:[{item:'Ovsene pahuljice',amount:'60 g'},{item:'Mlijeko',amount:'200 ml'},{item:'Banana',amount:'1 kom'},{item:'Orasi',amount:'20 g'},{item:'Cimet',amount:'prstohvat'}],
+    steps:['Prospi ovsene pahuljice u šerpicu i prelij mlijekom.','Kuvaj na laganoj vatri uz miješanje oko 5 minuta.','Skloni sa vatre i dodaj isjeckanu bananu.','Pospi izlomljene orahe i cimet pa posluži toplo.'],
+    tip:'Umjesto šećera zasladi kašikicom meda ako želiš slađe.'},
+
+  {id:'dorucak-skyr-cinija', name:'Skyr činija sa borovnicama', e:'🫐', cat:'Doručak', time:5, diff:'Lako', servings:1, kcal:275, p:25, c:30, f:6,
+    ingredients:[{item:'Skyr',amount:'200 g'},{item:'Borovnice',amount:'80 g'},{item:'Ovsene pahuljice',amount:'20 g'},{item:'Med',amount:'1 kašikica'}],
+    steps:['Sipaj skyr u činiju.','Dodaj borovnice odozgo.','Pospi ovsene pahuljice za hrskavost.','Prelij kašikicom meda i odmah posluži.'],
+    tip:'Ako nemaš borovnice, odlično idu maline ili sjeckana jabuka.'},
+
+  {id:'dorucak-proteinske-palacinke', name:'Proteinske palačinke', e:'🥞', cat:'Doručak', time:15, diff:'Lako', servings:1, kcal:350, p:30, c:35, f:10,
+    ingredients:[{item:'Jaja',amount:'2 kom'},{item:'Ovsene pahuljice',amount:'40 g'},{item:'Proteinski prah (vanila)',amount:'30 g'},{item:'Banana',amount:'1/2 kom'},{item:'Ulje',amount:'1 kašika'}],
+    steps:['Izblendaj jaja, pahuljice, protein i bananu u glatku smjesu.','Zagrij tiganj sa malo ulja.','Sipaj manje palačinke i peci sa obje strane po 2 minuta.','Posluži uz svježe voće ili kašikicu jogurta.'],
+    tip:'Za deblje palačinke dodaj manje tečnosti, za tanje malo mlijeka.'},
+
+  {id:'dorucak-jaja-spanac', name:'Jaja sa spanaćem', e:'🍳', cat:'Doručak', time:10, diff:'Lako', servings:1, kcal:265, p:20, c:6, f:18,
+    ingredients:[{item:'Jaja',amount:'3 kom'},{item:'Svježi spanać',amount:'80 g'},{item:'Bijeli luk',amount:'1 čen'},{item:'Ulje',amount:'1 kašika'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Zagrij ulje i kratko prodinstaj sjeckani bijeli luk.','Dodaj spanać i miješaj dok ne uvene.','Sipaj umućena jaja i lagano miješaj.','Začini solju i biberom pa skloni sa vatre.'],
+    tip:'Malo rendanog sira na kraju daje kremastiji ukus.'},
+
+  {id:'dorucak-cicvara-light', name:'Cicvara light od kukuruznog brašna', e:'🌽', cat:'Doručak', time:20, diff:'Srednje', servings:1, kcal:350, p:16, c:40, f:14,
+    ingredients:[{item:'Kukuruzno brašno',amount:'50 g'},{item:'Voda',amount:'250 ml'},{item:'Sir (posni)',amount:'50 g'},{item:'Pavlaka (light)',amount:'1 kašika'},{item:'So',amount:'prstohvat'}],
+    steps:['Zagrij posoljenu vodu do ključanja.','Postepeno dodaj kukuruzno brašno uz stalno miješanje.','Kuvaj na laganoj vatri dok se ne zgusne, oko 10 minuta.','Umiješaj sir i pavlaku pa posluži toplo.'],
+    tip:'Koristi posni sir umjesto kajmaka da smanjiš masnoće.'},
+
+  {id:'dorucak-tost-avokado-jaje', name:'Integralni tost sa avokadom i jajem', e:'🥑', cat:'Doručak', time:10, diff:'Lako', servings:1, kcal:375, p:18, c:30, f:20,
+    ingredients:[{item:'Integralni hljeb',amount:'2 kriške'},{item:'Avokado',amount:'1/2 kom'},{item:'Jaje',amount:'1 kom'},{item:'Limun',amount:'malo soka'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Zapeci kriške hljeba u tosteru ili tiganju.','Izgnječi avokado sa limunom, solju i biberom.','Ispeci jaje na oko na malo ulja.','Namaži avokado na tost i stavi jaje odozgo.'],
+    tip:'Prstohvat ljute paprike daje dodatnu aromu.'},
+
+  {id:'dorucak-omlet-sunka', name:'Omlet sa šunkom i paradajzom', e:'🍳', cat:'Doručak', time:10, diff:'Lako', servings:1, kcal:310, p:26, c:6, f:20,
+    ingredients:[{item:'Jaja',amount:'3 kom'},{item:'Pileća šunka',amount:'50 g'},{item:'Paradajz',amount:'1/2 kom'},{item:'Ulje',amount:'1 kašika'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Umuti jaja sa solju i biberom.','Nasjeckaj šunku i paradajz na kockice.','Sipaj jaja u zagrijan tiganj sa malo ulja.','Pospi šunku i paradajz pa peci dok se ne stegne.'],
+    tip:'Biraj posnu pileću šunku umjesto masnijih vrsta.'},
+
+  {id:'dorucak-kajgana-paprika', name:'Kajgana sa paprikom', e:'🌶️', cat:'Doručak', time:12, diff:'Lako', servings:1, kcal:250, p:18, c:8, f:16,
+    ingredients:[{item:'Jaja',amount:'3 kom'},{item:'Paprika',amount:'1 kom'},{item:'Crni luk',amount:'1/4 kom'},{item:'Ulje',amount:'1 kašika'},{item:'So',amount:'po ukusu'}],
+    steps:['Prodinstaj sjeckani luk i papriku na malo ulja.','Umuti jaja i sipaj u tiganj.','Miješaj varjačom dok se jaja ne zgrudvaju.','Posoli i posluži toplo.'],
+    tip:'Kajgana je najbolja ako je ne prepečeš, ostavi je mekanom.'},
+
+  {id:'dorucak-griz-mlijeko', name:'Griz na mlijeku', e:'🥛', cat:'Doručak', time:12, diff:'Lako', servings:1, kcal:310, p:14, c:45, f:8,
+    ingredients:[{item:'Griz',amount:'50 g'},{item:'Mlijeko',amount:'250 ml'},{item:'Med',amount:'1 kašikica'},{item:'Cimet',amount:'prstohvat'}],
+    steps:['Zagrij mlijeko u šerpici do vrenja.','Postepeno dodaj griz uz stalno miješanje.','Kuvaj 3 do 4 minuta dok se ne zgusne.','Posluži uz med i cimet.'],
+    tip:'Za kremastiji griz koristi malo više mlijeka.'},
+
+  {id:'dorucak-proteinski-smuti', name:'Proteinski smuti sa bananom', e:'🥤', cat:'Doručak', time:5, diff:'Lako', servings:1, kcal:300, p:28, c:35, f:5,
+    ingredients:[{item:'Mlijeko',amount:'250 ml'},{item:'Proteinski prah (vanila)',amount:'30 g'},{item:'Banana',amount:'1 kom'},{item:'Ovsene pahuljice',amount:'20 g'}],
+    steps:['Stavi sve sastojke u blender.','Blendaj dok ne dobiješ glatku smjesu.','Po želji dodaj koju kockicu leda.','Sipaj u čašu i odmah popij.'],
+    tip:'Sjajan obrok poslije treninga zbog brzog proteina.'},
+
+  {id:'dorucak-omlet-tikvice', name:'Omlet sa tikvicama i sirom', e:'🥚', cat:'Doručak', time:12, diff:'Lako', servings:1, kcal:280, p:22, c:7, f:18,
+    ingredients:[{item:'Jaja',amount:'3 kom'},{item:'Tikvice',amount:'80 g'},{item:'Sir (posni)',amount:'40 g'},{item:'Ulje',amount:'1 kašika'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Narendaj tikvice i lagano ih posoli.','Prodinstaj tikvice na malo ulja da puste vodu.','Sipaj umućena jaja i pospi sir.','Peci na laganoj vatri dok se omlet ne stegne.'],
+    tip:'Iscijedi višak vode iz tikvica da omlet ne bude vodnjikav.'},
+
+  {id:'rucak-pileci-rizoto', name:'Pileći rižoto sa povrćem', e:'🍚', cat:'Ručak', time:35, diff:'Srednje', servings:2, kcal:430, p:35, c:45, f:12,
+    ingredients:[{item:'Pileći file',amount:'250 g'},{item:'Pirinač',amount:'150 g'},{item:'Grašak',amount:'100 g'},{item:'Šargarepa',amount:'1 kom'},{item:'Ulje',amount:'2 kašike'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Isjeci piletinu na kockice i propeci na ulju.','Dodaj sjeckanu šargarepu i grašak pa kratko dinstaj.','Umiješaj pirinač i prelij vrućom vodom.','Kuvaj na laganoj vatri dok pirinač ne omekša, uz povremeno dolivanje vode.','Začini solju i biberom pa posluži.'],
+    tip:'Dodaj kašiku pavlake na kraju za kremastiji rižoto.'},
+
+  {id:'rucak-pasulj-prebranac', name:'Pasulj prebranac', e:'🫘', cat:'Ručak', time:90, diff:'Srednje', servings:4, kcal:380, p:18, c:50, f:12, free:true,
+    ingredients:[{item:'Bijeli pasulj',amount:'400 g'},{item:'Crni luk',amount:'3 kom'},{item:'Ulje',amount:'3 kašike'},{item:'Aleva paprika',amount:'1 kašika'},{item:'Lovorov list',amount:'2 lista'},{item:'So',amount:'po ukusu'}],
+    steps:['Skuvaj pasulj u posoljenoj vodi dok ne omekša.','Na ulju izdinstaj sitno sjeckani luk do zlatne boje.','Pomiješaj pasulj sa lukom, dodaj alevu papriku i lovor.','Prebaci u posudu za pečenje i dolij malo tečnosti.','Peci u rerni na 200 stepeni oko 40 minuta dok ne uhvati koricu.'],
+    tip:'Ostavi pasulj da odstoji pola sata prije služenja, ukus je bolji.'},
+
+  {id:'rucak-sarma-light', name:'Sarma light od ćuretine', e:'🥬', cat:'Ručak', time:80, diff:'Zahtjevno', servings:4, kcal:320, p:28, c:25, f:12,
+    ingredients:[{item:'Mljevena ćuretina',amount:'400 g'},{item:'Kiseli kupus (listovi)',amount:'12 kom'},{item:'Pirinač',amount:'80 g'},{item:'Crni luk',amount:'1 kom'},{item:'Aleva paprika',amount:'1 kašika'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Pomiješaj mljevenu ćuretinu, pirinač, sjeckani luk i začine.','Stavi kašiku fila na svaki list kupusa i umotaj.','Poslaži sarme u šerpu jednu do druge.','Prelij vodom da ogrezne i kuvaj na laganoj vatri oko sat vremena.'],
+    tip:'Ćuretina daje lakšu sarmu od klasične sa svinjetinom.'},
+
+  {id:'rucak-punjene-paprike', name:'Punjene paprike sa mesom i pirinčem', e:'🫑', cat:'Ručak', time:70, diff:'Srednje', servings:4, kcal:370, p:26, c:30, f:16,
+    ingredients:[{item:'Paprike babure',amount:'6 kom'},{item:'Mljevena junetina',amount:'350 g'},{item:'Pirinač',amount:'100 g'},{item:'Crni luk',amount:'1 kom'},{item:'Paradajz sos',amount:'200 ml'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Očisti paprike od sjemenki.','Pomiješaj meso, pirinač, sjeckani luk, so i biber.','Napuni paprike smjesom do vrha.','Poslaži ih u šerpu i prelij paradajz sosom i vodom.','Kuvaj na laganoj vatri oko sat vremena.'],
+    tip:'Zapeci na kraju u rerni za lijepu koricu odozgo.'},
+
+  {id:'rucak-djuvec-piletina', name:'Đuveč sa piletinom', e:'🍲', cat:'Ručak', time:60, diff:'Srednje', servings:4, kcal:390, p:30, c:40, f:12,
+    ingredients:[{item:'Pileći file',amount:'400 g'},{item:'Pirinač',amount:'150 g'},{item:'Paprika',amount:'2 kom'},{item:'Paradajz',amount:'2 kom'},{item:'Grašak',amount:'100 g'},{item:'Ulje',amount:'2 kašike'}],
+    steps:['Isjeci piletinu i povrće na komade.','Kratko propeci piletinu na ulju.','Dodaj sjeckano povrće i pirinač.','Prelij vodom i začini pa sve prebaci u posudu za pečenje.','Peci u rerni na 200 stepeni oko 40 minuta.'],
+    tip:'Đuveč se može spremiti i samo u šerpi na šporetu.'},
+
+  {id:'rucak-musaka-krompir', name:'Musaka od krompira', e:'🥔', cat:'Ručak', time:70, diff:'Srednje', servings:4, kcal:390, p:22, c:35, f:18,
+    ingredients:[{item:'Krompir',amount:'700 g'},{item:'Mljevena junetina',amount:'400 g'},{item:'Crni luk',amount:'1 kom'},{item:'Jaja',amount:'2 kom'},{item:'Mlijeko',amount:'150 ml'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Iseci krompir na kolutove i posoli.','Prodinstaj luk i meso uz začine.','Ređaj sloj krompira pa sloj mesa u podmazanu posudu.','Umuti jaja sa mlijekom i prelij preko.','Peci u rerni na 200 stepeni oko 45 minuta.'],
+    tip:'Prokuvaj krompir 5 minuta prije ređanja da se brže ispeče.'},
+
+  {id:'rucak-riba-povrce', name:'Pečeni oslić sa povrćem', e:'🐟', cat:'Ručak', time:40, diff:'Lako', servings:2, kcal:310, p:34, c:12, f:14,
+    ingredients:[{item:'File oslića',amount:'350 g'},{item:'Tikvice',amount:'1 kom'},{item:'Paprika',amount:'1 kom'},{item:'Maslinovo ulje',amount:'2 kašike'},{item:'Limun',amount:'1/2 kom'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Poslaži file ribe u posudu za pečenje.','Rasporedi sjeckano povrće okolo.','Prelij maslinovim uljem i sokom limuna.','Začini solju i biberom pa peci na 200 stepeni oko 25 minuta.'],
+    tip:'Svjež peršun na kraju pojačava ukus ribe.'},
+
+  {id:'rucak-juneci-gulas', name:'Juneći gulaš', e:'🍖', cat:'Ručak', time:100, diff:'Srednje', servings:4, kcal:370, p:32, c:15, f:20,
+    ingredients:[{item:'Juneći but',amount:'500 g'},{item:'Crni luk',amount:'3 kom'},{item:'Aleva paprika',amount:'2 kašike'},{item:'Paradajz',amount:'2 kom'},{item:'Ulje',amount:'2 kašike'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Izdinstaj sitno sjeckani luk na ulju do zlatne boje.','Dodaj isjeckano meso i propeci sa svih strana.','Umiješaj alevu papriku i sjeckani paradajz.','Prelij vodom i kuvaj poklopljeno oko sat i po.','Začini solju i biberom pred kraj.'],
+    tip:'Posluži uz kuvani krompir ili domaće njoke.'},
+
+  {id:'rucak-sataras-jaja', name:'Sataraš sa jajima', e:'🍅', cat:'Ručak', time:30, diff:'Lako', servings:2, kcal:300, p:16, c:18, f:18,
+    ingredients:[{item:'Paprika',amount:'3 kom'},{item:'Paradajz',amount:'3 kom'},{item:'Crni luk',amount:'1 kom'},{item:'Jaja',amount:'3 kom'},{item:'Ulje',amount:'2 kašike'},{item:'So',amount:'po ukusu'}],
+    steps:['Prodinstaj sjeckani luk na ulju.','Dodaj sjeckanu papriku i dinstaj 5 minuta.','Umiješaj sjeckani paradajz i kuvaj dok ne omekša.','Razbij jaja u sataraš i lagano miješaj dok se ne stegnu.'],
+    tip:'Za bogatiji ukus dodaj malo ljute paprike.'},
+
+  {id:'rucak-cureci-file-pire', name:'Ćureći file sa pireom od krompira', e:'🦃', cat:'Ručak', time:35, diff:'Lako', servings:2, kcal:400, p:38, c:35, f:12,
+    ingredients:[{item:'Ćureći file',amount:'300 g'},{item:'Krompir',amount:'400 g'},{item:'Mlijeko',amount:'100 ml'},{item:'Ulje',amount:'2 kašike'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Iseci file na šnicle i začini solju i biberom.','Ispeci ćuretinu na ulju sa obje strane do zlatne boje.','Skuvaj oljušten krompir u slanoj vodi.','Izgnječi krompir sa toplim mlijekom u glatki pire.','Posluži ćuretinu uz pire.'],
+    tip:'Kašika maslinovog ulja u pireu daje mu svilenkastu teksturu.'},
+
+  {id:'rucak-piletina-blitva', name:'Piletina sa blitvom i krompirom', e:'🍗', cat:'Ručak', time:40, diff:'Lako', servings:2, kcal:370, p:36, c:25, f:14,
+    ingredients:[{item:'Pileći file',amount:'300 g'},{item:'Blitva',amount:'300 g'},{item:'Krompir',amount:'250 g'},{item:'Bijeli luk',amount:'2 čena'},{item:'Maslinovo ulje',amount:'2 kašike'},{item:'So',amount:'po ukusu'}],
+    steps:['Skuvaj krompir i blitvu zajedno u slanoj vodi.','Ocijedi i začini bijelim lukom i maslinovim uljem.','Začini piletinu i ispeci je na tiganju.','Posluži piletinu uz blitvu sa krompirom.'],
+    tip:'Ne prekuvavaj blitvu da zadrži zelenu boju i vitamine.'},
+
+  {id:'rucak-teleca-corba', name:'Teleća čorba', e:'🥣', cat:'Ručak', time:70, diff:'Srednje', servings:4, kcal:250, p:20, c:15, f:12,
+    ingredients:[{item:'Teleće meso',amount:'300 g'},{item:'Šargarepa',amount:'2 kom'},{item:'Krompir',amount:'2 kom'},{item:'Peršunov korijen',amount:'1 kom'},{item:'Zaprška (brašno i ulje)',amount:'1 kašika'},{item:'So',amount:'po ukusu'}],
+    steps:['Skuvaj meso u posoljenoj vodi i skini pjenu.','Dodaj isjeckano povrće i kuvaj dok ne omekša.','Napravi laganu zapršku i umiješaj u čorbu.','Kuvaj još 10 minuta pa začini po ukusu.'],
+    tip:'Kašika pavlake i limuna daju svjež završni ukus.'},
+
+  {id:'rucak-pljeskavica-salata', name:'Pljeskavica sa salatom', e:'🍔', cat:'Ručak', time:30, diff:'Lako', servings:2, kcal:370, p:32, c:10, f:22,
+    ingredients:[{item:'Mljevena junetina',amount:'400 g'},{item:'Crni luk',amount:'1/2 kom'},{item:'Zelena salata',amount:'100 g'},{item:'Paradajz',amount:'1 kom'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Pomiješaj meso sa sitno sjeckanim lukom, solju i biberom.','Oblikuj pljeskavice i ostavi da odstoje 10 minuta.','Ispeci na vrelom roštilju ili tiganju sa obje strane.','Posluži uz svježu salatu od paradajza i zelene salate.'],
+    tip:'Dobro izmiješaj meso rukama da pljeskavica bude sočna.'},
+
+  {id:'rucak-grasak-piletina', name:'Piletina sa mladim graškom', e:'🟢', cat:'Ručak', time:35, diff:'Lako', servings:2, kcal:330, p:34, c:22, f:12,
+    ingredients:[{item:'Pileći file',amount:'300 g'},{item:'Grašak',amount:'300 g'},{item:'Šargarepa',amount:'1 kom'},{item:'Crni luk',amount:'1/2 kom'},{item:'Ulje',amount:'2 kašike'},{item:'So',amount:'po ukusu'}],
+    steps:['Isjeci piletinu na kockice i propeci na ulju.','Dodaj sjeckani luk i šargarepu pa dinstaj.','Umiješaj grašak i dolij malo vode.','Kuvaj poklopljeno dok grašak ne omekša, oko 15 minuta.'],
+    tip:'Svjež kopar na kraju sjajno se slaže sa graškom.'},
+
+  {id:'rucak-rizoto-pecurke', name:'Rižoto sa pečurkama', e:'🍄', cat:'Ručak', time:35, diff:'Srednje', servings:2, kcal:375, p:12, c:55, f:12,
+    ingredients:[{item:'Pirinač',amount:'180 g'},{item:'Šampinjoni',amount:'250 g'},{item:'Crni luk',amount:'1 kom'},{item:'Maslinovo ulje',amount:'2 kašike'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Prodinstaj sjeckani luk na maslinovom ulju.','Dodaj narezane pečurke i dinstaj dok ne puste vodu.','Umiješaj pirinač pa postepeno dolivaj vruću vodu.','Miješaj dok pirinač ne postane kremast i mekan.','Začini solju i biberom pred kraj.'],
+    tip:'Malo rendanog tvrdog sira na kraju pojačava ukus.'},
+
+  {id:'rucak-punjene-tikvice', name:'Punjene tikvice mesom', e:'🥒', cat:'Ručak', time:55, diff:'Srednje', servings:2, kcal:330, p:28, c:18, f:16,
+    ingredients:[{item:'Tikvice',amount:'2 kom'},{item:'Mljevena junetina',amount:'250 g'},{item:'Pirinač',amount:'50 g'},{item:'Paradajz sos',amount:'150 ml'},{item:'Crni luk',amount:'1/2 kom'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Prepolovi tikvice i izdubi sredinu.','Pomiješaj meso, pirinač, luk i začine.','Napuni tikvice smjesom i poslaži u posudu.','Prelij paradajz sosom i peci na 200 stepeni oko 35 minuta.'],
+    tip:'Izdubljenu sredinu tikvice sitno nasjeckaj i dodaj u fil.'},
+
+  {id:'vecera-grilovana-piletina-salata', name:'Grilovana piletina sa salatom', e:'🥗', cat:'Večera', time:25, diff:'Lako', servings:1, kcal:285, p:40, c:8, f:10, free:true,
+    ingredients:[{item:'Pileći file',amount:'200 g'},{item:'Zelena salata',amount:'80 g'},{item:'Krastavac',amount:'1/2 kom'},{item:'Paradajz',amount:'1 kom'},{item:'Maslinovo ulje',amount:'1 kašika'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Začini piletinu solju i biberom.','Grilaj file na vrelom roštilju sa obje strane.','Nasjeckaj povrće i pomiješaj u činiji.','Prelij salatu maslinovim uljem i posluži uz piletinu.'],
+    tip:'Ostavi piletinu da odmori 5 minuta prije rezanja da ostane sočna.'},
+
+  {id:'vecera-losos-povrce', name:'Pečeni losos sa povrćem', e:'🍣', cat:'Večera', time:30, diff:'Lako', servings:1, kcal:370, p:34, c:8, f:22,
+    ingredients:[{item:'File lososa',amount:'180 g'},{item:'Brokoli',amount:'150 g'},{item:'Maslinovo ulje',amount:'1 kašika'},{item:'Limun',amount:'1/2 kom'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Začini losos solju, biberom i sokom limuna.','Poslaži losos i cvjetiće brokolija u posudu.','Prelij maslinovim uljem.','Peci u rerni na 200 stepeni oko 18 minuta.'],
+    tip:'Ne prepeci losos da ostane sočan i mekan iznutra.'},
+
+  {id:'vecera-tikvice-rerna', name:'Tikvice iz rerne sa sirom', e:'🧀', cat:'Večera', time:35, diff:'Lako', servings:2, kcal:250, p:16, c:14, f:14,
+    ingredients:[{item:'Tikvice',amount:'2 kom'},{item:'Sir (posni)',amount:'100 g'},{item:'Jaja',amount:'1 kom'},{item:'Bijeli luk',amount:'1 čen'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Iseci tikvice na kolutove i poslaži u posudu.','Umuti jaje sa izmrvljenim sirom i bijelim lukom.','Prelij tikvice smjesom.','Peci u rerni na 200 stepeni oko 25 minuta.'],
+    tip:'Malo origana odozgo daje mediteranski ukus.'},
+
+  {id:'vecera-salata-tunjevina', name:'Salata sa tunjevinom', e:'🐟', cat:'Večera', time:10, diff:'Lako', servings:1, kcal:290, p:28, c:12, f:14,
+    ingredients:[{item:'Tunjevina u komadu',amount:'120 g'},{item:'Pasulj (kuvani)',amount:'80 g'},{item:'Crni luk',amount:'1/4 kom'},{item:'Zelena salata',amount:'60 g'},{item:'Maslinovo ulje',amount:'1 kašika'}],
+    steps:['Ocijedi tunjevinu i stavi u činiju.','Dodaj kuvani pasulj i sjeckani luk.','Umiješaj listove zelene salate.','Prelij maslinovim uljem i lagano promiješaj.'],
+    tip:'Biraj tunjevinu u sopstvenom soku umjesto u ulju.'},
+
+  {id:'vecera-omlet-vece', name:'Lagani omlet za veče', e:'🍳', cat:'Večera', time:10, diff:'Lako', servings:1, kcal:230, p:20, c:6, f:14,
+    ingredients:[{item:'Jaja',amount:'2 kom'},{item:'Bjelanca',amount:'2 kom'},{item:'Paprika',amount:'1/2 kom'},{item:'Ulje',amount:'1 kašikica'},{item:'So',amount:'po ukusu'}],
+    steps:['Umuti cijela jaja sa bjelancima.','Prodinstaj sjeckanu papriku na malo ulja.','Sipaj jaja i peci na laganoj vatri.','Presavij omlet i posluži toplo.'],
+    tip:'Dodatna bjelanca daju više proteina uz manje masnoća.'},
+
+  {id:'vecera-piletina-tikvice', name:'Piletina sa tikvicama iz tiganja', e:'🍗', cat:'Večera', time:25, diff:'Lako', servings:1, kcal:300, p:38, c:10, f:12,
+    ingredients:[{item:'Pileći file',amount:'200 g'},{item:'Tikvice',amount:'1 kom'},{item:'Bijeli luk',amount:'1 čen'},{item:'Maslinovo ulje',amount:'1 kašika'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Isjeci piletinu na trakice i propeci na ulju.','Dodaj sjeckani bijeli luk.','Umiješaj tikvice na kolutove i dinstaj dok ne omekšaju.','Začini solju i biberom pa posluži.'],
+    tip:'Prelij malo limunovog soka na kraju za svježinu.'},
+
+  {id:'vecera-corba-povrce', name:'Čorba od povrća', e:'🥕', cat:'Večera', time:35, diff:'Lako', servings:2, kcal:160, p:6, c:20, f:6,
+    ingredients:[{item:'Šargarepa',amount:'2 kom'},{item:'Krompir',amount:'1 kom'},{item:'Tikvice',amount:'1 kom'},{item:'Crni luk',amount:'1 kom'},{item:'Ulje',amount:'1 kašika'},{item:'So',amount:'po ukusu'}],
+    steps:['Prodinstaj sjeckani luk na ulju.','Dodaj isjeckano povrće i kratko izmiješaj.','Prelij vodom da ogrezne.','Kuvaj oko 20 minuta dok povrće ne omekša.','Začini po ukusu i posluži toplo.'],
+    tip:'Za kremastu čorbu izblendaj polovinu i vrati u šerpu.'},
+
+  {id:'vecera-grcka-salata-sir', name:'Grčka salata sa sirom', e:'🥗', cat:'Večera', time:10, diff:'Lako', servings:1, kcal:290, p:14, c:14, f:20,
+    ingredients:[{item:'Paradajz',amount:'1 kom'},{item:'Krastavac',amount:'1/2 kom'},{item:'Feta sir',amount:'60 g'},{item:'Masline',amount:'8 kom'},{item:'Maslinovo ulje',amount:'1 kašika'}],
+    steps:['Nasjeckaj paradajz i krastavac na krupnije komade.','Dodaj masline i kockice fete.','Prelij maslinovim uljem.','Pospi malo origana i lagano promiješaj.'],
+    tip:'Crni luk na tanke kolutove daje dodatnu aromu.'},
+
+  {id:'vecera-riba-na-zaru', name:'Brancin na žaru sa limunom', e:'🐠', cat:'Večera', time:25, diff:'Srednje', servings:1, kcal:260, p:36, c:2, f:12,
+    ingredients:[{item:'Brancin (očišćen)',amount:'250 g'},{item:'Limun',amount:'1/2 kom'},{item:'Bijeli luk',amount:'2 čena'},{item:'Maslinovo ulje',amount:'1 kašika'},{item:'So',amount:'po ukusu'}],
+    steps:['Očisti i posoli ribu iznutra i spolja.','Ubaci kriške limuna i bijeli luk u trbuh ribe.','Premaži maslinovim uljem.','Peci na žaru oko 6 minuta sa svake strane.'],
+    tip:'Riba je gotova kad se meso lako odvaja od kosti.'},
+
+  {id:'vecera-salata-piletina-avokado', name:'Salata sa piletinom i avokadom', e:'🥑', cat:'Večera', time:20, diff:'Lako', servings:1, kcal:340, p:34, c:10, f:18,
+    ingredients:[{item:'Pileći file',amount:'150 g'},{item:'Avokado',amount:'1/2 kom'},{item:'Zelena salata',amount:'80 g'},{item:'Paradajz čeri',amount:'6 kom'},{item:'Maslinovo ulje',amount:'1 kašika'}],
+    steps:['Začini i ispeci piletinu pa je isjeci na trakice.','U činiju stavi zelenu salatu i prepolovljene čeri.','Dodaj kockice avokada i toplu piletinu.','Prelij maslinovim uljem i lagano promiješaj.'],
+    tip:'Malo senfa u preliv daje pikantan ukus.'},
+
+  {id:'vecera-cufte-paradajz', name:'Ćufte u paradajz sosu', e:'🍝', cat:'Večera', time:40, diff:'Srednje', servings:2, kcal:300, p:28, c:15, f:14,
+    ingredients:[{item:'Mljevena junetina',amount:'350 g'},{item:'Jaje',amount:'1 kom'},{item:'Paradajz sos',amount:'250 ml'},{item:'Crni luk',amount:'1/2 kom'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Pomiješaj meso, jaje, sjeckani luk i začine.','Oblikuj male ćufte.','Kratko ih propeci u tiganju.','Prelij paradajz sosom i krčkaj 20 minuta.'],
+    tip:'Malo bosiljka na kraju daje italijanski karakter.'},
+
+  {id:'vecera-krem-corba-bundeva', name:'Krem čorba od bundeve', e:'🎃', cat:'Večera', time:35, diff:'Lako', servings:2, kcal:185, p:6, c:22, f:8,
+    ingredients:[{item:'Bundeva',amount:'400 g'},{item:'Šargarepa',amount:'1 kom'},{item:'Crni luk',amount:'1/2 kom'},{item:'Pavlaka (light)',amount:'1 kašika'},{item:'Ulje',amount:'1 kašika'}],
+    steps:['Prodinstaj sjeckani luk na ulju.','Dodaj isjeckanu bundevu i šargarepu.','Prelij vodom i kuvaj dok povrće ne omekša.','Izblendaj u kremastu čorbu i umiješaj pavlaku.'],
+    tip:'Prstohvat đumbira daje toplu, začinjenu notu.'},
+
+  {id:'vecera-tost-piletina', name:'Topli sendvič sa piletinom', e:'🥪', cat:'Večera', time:15, diff:'Lako', servings:1, kcal:330, p:30, c:30, f:10,
+    ingredients:[{item:'Integralni hljeb',amount:'2 kriške'},{item:'Pileći file',amount:'120 g'},{item:'Sir (posni)',amount:'30 g'},{item:'Paradajz',amount:'1/2 kom'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Ispeci začinjenu piletinu pa je isjeci na trakice.','Poslaži piletinu, sir i paradajz na krišku hljeba.','Poklopi drugom kriškom.','Zapeci sendvič u tiganju sa obje strane dok se sir ne otopi.'],
+    tip:'List zelene salate dodaj poslije pečenja da ostane svjež.'},
+
+  {id:'vecera-pecurke-tiganj', name:'Pečurke na žaru sa bijelim lukom', e:'🍄', cat:'Večera', time:20, diff:'Lako', servings:2, kcal:165, p:8, c:10, f:10,
+    ingredients:[{item:'Šampinjoni',amount:'400 g'},{item:'Bijeli luk',amount:'3 čena'},{item:'Peršun',amount:'1 kašika'},{item:'Maslinovo ulje',amount:'2 kašike'},{item:'So',amount:'po ukusu'}],
+    steps:['Očisti i prepolovi veće pečurke.','Zagrij maslinovo ulje sa sjeckanim bijelim lukom.','Dodaj pečurke i peci dok ne porumene.','Pospi sjeckani peršun i posoli pred kraj.'],
+    tip:'Ne soli pečurke prerano da ne puste previše vode.'},
+
+  {id:'uzina-proteinske-kuglice', name:'Proteinske kuglice sa kikirikijem', e:'🥜', cat:'Užina', time:15, diff:'Lako', servings:4, kcal:230, p:12, c:18, f:12,
+    ingredients:[{item:'Ovsene pahuljice',amount:'80 g'},{item:'Kikiriki puter',amount:'50 g'},{item:'Proteinski prah',amount:'40 g'},{item:'Med',amount:'2 kašike'}],
+    steps:['Pomiješaj sve sastojke u činiji dok se ne spoje.','Ako je smjesa suva, dodaj malo mlijeka.','Oblikuj male kuglice rukama.','Ostavi u frižideru bar 30 minuta da se stegnu.'],
+    tip:'Uvaljaj kuglice u kokos ili kakao za dekoraciju.'},
+
+  {id:'uzina-humus-povrce', name:'Humus sa štapićima povrća', e:'🧆', cat:'Užina', time:10, diff:'Lako', servings:2, kcal:220, p:8, c:20, f:12,
+    ingredients:[{item:'Naut (kuvani)',amount:'200 g'},{item:'Tahini',amount:'1 kašika'},{item:'Limun',amount:'1/2 kom'},{item:'Bijeli luk',amount:'1 čen'},{item:'Šargarepa i krastavac',amount:'150 g'}],
+    steps:['Izblendaj naut, tahini, limun i bijeli luk.','Dodaj malo vode dok ne postane kremasto.','Sipaj humus u činiju.','Posluži sa štapićima svježeg povrća.'],
+    tip:'Kap maslinovog ulja i aleve paprike odozgo za ljepši izgled.'},
+
+  {id:'uzina-skyr-voce', name:'Skyr sa voćem i medom', e:'🍓', cat:'Užina', time:5, diff:'Lako', servings:1, kcal:205, p:22, c:25, f:2, free:true,
+    ingredients:[{item:'Skyr',amount:'180 g'},{item:'Jagode',amount:'100 g'},{item:'Med',amount:'1 kašikica'}],
+    steps:['Sipaj skyr u činiju.','Dodaj sjeckane jagode.','Prelij kašikicom meda.','Lagano promiješaj i posluži.'],
+    tip:'Odlična brza užina puna proteina i malo masnoća.'},
+
+  {id:'uzina-kuvana-jaja', name:'Kuvana jaja sa avokadom', e:'🥚', cat:'Užina', time:12, diff:'Lako', servings:1, kcal:235, p:14, c:4, f:18,
+    ingredients:[{item:'Jaja',amount:'2 kom'},{item:'Avokado',amount:'1/4 kom'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Skuvaj jaja tvrdo, oko 9 minuta.','Ohladi ih pod hladnom vodom i oljušti.','Prepolovi jaja i pospi solju i biberom.','Posluži uz kockice avokada.'],
+    tip:'Malo limunovog soka na avokadu spriječava tamnjenje.'},
+
+  {id:'uzina-integralni-sendvic', name:'Integralni sendvič sa sirom i šunkom', e:'🥪', cat:'Užina', time:5, diff:'Lako', servings:1, kcal:300, p:20, c:28, f:12,
+    ingredients:[{item:'Integralni hljeb',amount:'2 kriške'},{item:'Pileća šunka',amount:'50 g'},{item:'Sir (posni)',amount:'40 g'},{item:'Zelena salata',amount:'1 list'}],
+    steps:['Poslaži šunku i sir na krišku hljeba.','Dodaj list zelene salate.','Poklopi drugom kriškom.','Prepolovi i posluži.'],
+    tip:'Kolut paradajza dodaje svježinu i sočnost.'},
+
+  {id:'uzina-vocni-smuti', name:'Voćni smuti sa jogurtom', e:'🥤', cat:'Užina', time:5, diff:'Lako', servings:1, kcal:210, p:10, c:35, f:3,
+    ingredients:[{item:'Jogurt',amount:'200 ml'},{item:'Banana',amount:'1 kom'},{item:'Smrznuto voće',amount:'100 g'},{item:'Med',amount:'1 kašikica'}],
+    steps:['Stavi sve sastojke u blender.','Blendaj dok ne postane glatko.','Dodaj malo vode ako je pregusto.','Sipaj u čašu i odmah popij.'],
+    tip:'Smrznuto voće daje hladan i kremast smuti bez leda.'},
+
+  {id:'uzina-orasi-badem', name:'Mješavina oraha i badema', e:'🌰', cat:'Užina', time:2, diff:'Lako', servings:1, kcal:300, p:8, c:8, f:26,
+    ingredients:[{item:'Orasi',amount:'20 g'},{item:'Bademi',amount:'20 g'},{item:'Suvo grožđe',amount:'15 g'}],
+    steps:['Odmjeri sve sastojke.','Pomiješaj u maloj činiji.','Prebaci u kutijicu za nošenje.','Uživaj kao brzu užinu tokom dana.'],
+    tip:'Drži porciju umjerenom jer su orašasti plodovi kalorični.'},
+
+  {id:'uzina-jogurt-musli', name:'Jogurt sa musli i voćem', e:'🥣', cat:'Užina', time:5, diff:'Lako', servings:1, kcal:230, p:14, c:30, f:6,
+    ingredients:[{item:'Grčki jogurt',amount:'200 g'},{item:'Musli',amount:'40 g'},{item:'Jabuka',amount:'1/2 kom'}],
+    steps:['Sipaj jogurt u činiju.','Pospi musli odozgo.','Dodaj sjeckanu jabuku.','Promiješaj i posluži.'],
+    tip:'Biraj musli bez dodatog šećera za zdraviju verziju.'},
+
+  {id:'uzina-tost-kikiriki-puter', name:'Rižin tost sa kikiriki puterom', e:'🥜', cat:'Užina', time:5, diff:'Lako', servings:1, kcal:250, p:10, c:25, f:12,
+    ingredients:[{item:'Rižini tostovi',amount:'2 kom'},{item:'Kikiriki puter',amount:'20 g'},{item:'Banana',amount:'1/2 kom'}],
+    steps:['Namaži kikiriki puter na rižine tostove.','Iseci bananu na kolutove.','Poslaži bananu preko putera.','Po želji pospi malo cimeta.'],
+    tip:'Biraj kikiriki puter bez dodatog šećera i ulja.'},
+
+  {id:'uzina-svjezi-sir-krastavac', name:'Svježi sir sa krastavcem', e:'🧀', cat:'Užina', time:5, diff:'Lako', servings:1, kcal:150, p:16, c:8, f:6,
+    ingredients:[{item:'Svježi posni sir',amount:'150 g'},{item:'Krastavac',amount:'1/2 kom'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Sipaj svježi sir u činiju.','Nasjeckaj krastavac na sitne kockice.','Umiješaj krastavac u sir.','Začini solju i biberom pa posluži.'],
+    tip:'Malo sjeckanog kopra osvježava ukus.'},
+
+  {id:'posno-pasulj', name:'Posni pasulj', e:'🫘', cat:'Posno', time:90, diff:'Srednje', servings:4, kcal:335, p:16, c:50, f:8,
+    ingredients:[{item:'Pasulj',amount:'350 g'},{item:'Crni luk',amount:'2 kom'},{item:'Šargarepa',amount:'1 kom'},{item:'Aleva paprika',amount:'1 kašika'},{item:'Ulje',amount:'2 kašike'},{item:'So',amount:'po ukusu'}],
+    steps:['Skuvaj pasulj u posoljenoj vodi dok ne omekša.','Na ulju izdinstaj sjeckani luk i šargarepu.','Umiješaj alevu papriku i dodaj u pasulj.','Krčkaj još 20 minuta dok se čorba ne zgusne.'],
+    tip:'Lovorov list i malo bijelog luka pojačavaju aromu.'},
+
+  {id:'posno-socivo-corba', name:'Čorba od sočiva', e:'🍲', cat:'Posno', time:45, diff:'Lako', servings:4, kcal:270, p:14, c:40, f:6,
+    ingredients:[{item:'Sočivo',amount:'250 g'},{item:'Šargarepa',amount:'2 kom'},{item:'Crni luk',amount:'1 kom'},{item:'Paradajz sos',amount:'100 ml'},{item:'Ulje',amount:'1 kašika'},{item:'So',amount:'po ukusu'}],
+    steps:['Prodinstaj sjeckani luk i šargarepu na ulju.','Dodaj oprano sočivo i paradajz sos.','Prelij vodom da ogrezne.','Kuvaj oko 30 minuta dok sočivo ne omekša.','Začini po ukusu i posluži.'],
+    tip:'Sočivo ne treba prethodno namakati kao pasulj.'},
+
+  {id:'posno-naut-variva', name:'Variva od nauta', e:'🧆', cat:'Posno', time:50, diff:'Lako', servings:4, kcal:330, p:15, c:45, f:10,
+    ingredients:[{item:'Naut (kuvani)',amount:'400 g'},{item:'Crni luk',amount:'1 kom'},{item:'Paradajz',amount:'2 kom'},{item:'Bijeli luk',amount:'2 čena'},{item:'Ulje',amount:'2 kašike'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Prodinstaj sjeckani luk i bijeli luk na ulju.','Dodaj sjeckani paradajz i kratko kuvaj.','Umiješaj kuvani naut i malo vode.','Krčkaj 20 minuta da se ukusi spoje.'],
+    tip:'Kim i malo limuna daju naut varivu bogatiji ukus.'},
+
+  {id:'posno-punjeno-povrce', name:'Punjeno povrće pirinčem', e:'🫑', cat:'Posno', time:60, diff:'Srednje', servings:4, kcal:285, p:8, c:40, f:10,
+    ingredients:[{item:'Paprike babure',amount:'4 kom'},{item:'Tikvice',amount:'2 kom'},{item:'Pirinač',amount:'150 g'},{item:'Crni luk',amount:'1 kom'},{item:'Paradajz sos',amount:'200 ml'},{item:'Ulje',amount:'2 kašike'}],
+    steps:['Izdinstaj sjeckani luk pa dodaj pirinač i kratko propeci.','Očisti paprike i izdubi tikvice.','Napuni povrće smjesom od pirinča.','Poslaži u posudu, prelij paradajz sosom i vodom.','Peci na 200 stepeni oko 40 minuta.'],
+    tip:'Peršun i menta u filu daju svjež, lagan ukus.'},
+
+  {id:'posno-posna-sarma', name:'Posna sarma', e:'🥬', cat:'Posno', time:90, diff:'Zahtjevno', servings:4, kcal:255, p:8, c:38, f:8,
+    ingredients:[{item:'Kiseli kupus (listovi)',amount:'12 kom'},{item:'Pirinač',amount:'150 g'},{item:'Crni luk',amount:'2 kom'},{item:'Šargarepa',amount:'1 kom'},{item:'Aleva paprika',amount:'1 kašika'},{item:'Ulje',amount:'2 kašike'}],
+    steps:['Prodinstaj sjeckani luk i rendanu šargarepu na ulju.','Dodaj pirinač i alevu papriku pa kratko propeci.','Umotaj fil u listove kupusa.','Poslaži sarme u šerpu i prelij vodom.','Kuvaj na laganoj vatri oko sat vremena.'],
+    tip:'Nekoliko zrna bibera i lovorov list daju punoću ukusa.'},
+
+  {id:'posno-rizoto-pecurke', name:'Posni rižoto sa pečurkama', e:'🍄', cat:'Posno', time:35, diff:'Srednje', servings:2, kcal:350, p:10, c:55, f:10,
+    ingredients:[{item:'Pirinač',amount:'180 g'},{item:'Šampinjoni',amount:'250 g'},{item:'Crni luk',amount:'1 kom'},{item:'Bijeli luk',amount:'2 čena'},{item:'Maslinovo ulje',amount:'2 kašike'},{item:'So i biber',amount:'po ukusu'}],
+    steps:['Prodinstaj sjeckani luk i bijeli luk na ulju.','Dodaj narezane pečurke i dinstaj dok ne puste vodu.','Umiješaj pirinač pa postepeno dolivaj vruću vodu.','Miješaj dok pirinač ne omekša i postane kremast.'],
+    tip:'Svjež peršun na kraju osvježava jelo.'},
+
+  {id:'posno-prebranac', name:'Prebranac posni', e:'🍲', cat:'Posno', time:90, diff:'Srednje', servings:4, kcal:365, p:16, c:48, f:12,
+    ingredients:[{item:'Bijeli pasulj',amount:'400 g'},{item:'Crni luk',amount:'4 kom'},{item:'Ulje',amount:'3 kašike'},{item:'Aleva paprika',amount:'1 kašika'},{item:'Lovorov list',amount:'2 lista'}],
+    steps:['Skuvaj pasulj dok ne omekša.','Izdinstaj puno sjeckanog luka na ulju do zlatne boje.','Ređaj sloj pasulja i sloj luka u posudu.','Pospi alevom paprikom i ubaci lovor.','Peci u rerni na 200 stepeni oko 45 minuta.'],
+    tip:'Prebranac je najbolji sa dosta luka, ne štedi na njemu.'},
+
+  {id:'posno-djuvec-povrce', name:'Posni đuveč od povrća', e:'🍆', cat:'Posno', time:55, diff:'Lako', servings:4, kcal:285, p:8, c:45, f:8,
+    ingredients:[{item:'Pirinač',amount:'150 g'},{item:'Plavi patlidžan',amount:'1 kom'},{item:'Tikvice',amount:'1 kom'},{item:'Paprika',amount:'2 kom'},{item:'Paradajz',amount:'2 kom'},{item:'Ulje',amount:'2 kašike'}],
+    steps:['Isjeci sve povrće na kockice.','Pomiješaj povrće sa pirinčem u posudi za pečenje.','Prelij uljem i vodom, začini solju.','Peci u rerni na 200 stepeni oko 45 minuta.'],
+    tip:'Promiješaj na pola pečenja da se pirinač ravnomjerno skuva.'},
+
+  {id:'slatko-proteinski-puding', name:'Proteinski puding od čokolade', e:'🍫', cat:'Slatko', time:10, diff:'Lako', servings:1, kcal:235, p:25, c:20, f:6, free:true,
+    ingredients:[{item:'Grčki jogurt',amount:'150 g'},{item:'Proteinski prah (čokolada)',amount:'30 g'},{item:'Kakao',amount:'1 kašikica'},{item:'Med',amount:'1 kašikica'}],
+    steps:['Pomiješaj jogurt sa proteinskim prahom.','Umiješaj kakao i med.','Muti dok ne postane glatko i kremasto.','Ohladi u frižideru 15 minuta prije služenja.'],
+    tip:'Nekoliko malina odozgo daje svjež, voćni kontrast.'},
+
+  {id:'slatko-ovsene-kuglice', name:'Ovsene kuglice sa kakaom', e:'🍪', cat:'Slatko', time:15, diff:'Lako', servings:4, kcal:225, p:8, c:25, f:10,
+    ingredients:[{item:'Ovsene pahuljice',amount:'100 g'},{item:'Kikiriki puter',amount:'40 g'},{item:'Kakao',amount:'1 kašika'},{item:'Med',amount:'2 kašike'},{item:'Mlijeko',amount:'2 kašike'}],
+    steps:['Pomiješaj sve sastojke u činiji.','Sjedini u ljepljivu smjesu.','Oblikuj kuglice rukama.','Ostavi u frižideru bar 30 minuta.'],
+    tip:'Uvaljaj kuglice u pahuljice ili kokos za dekoraciju.'},
+
+  {id:'slatko-pecena-jabuka', name:'Pečena jabuka sa cimetom i orasima', e:'🍎', cat:'Slatko', time:35, diff:'Lako', servings:2, kcal:230, p:4, c:35, f:8,
+    ingredients:[{item:'Jabuke',amount:'2 kom'},{item:'Orasi',amount:'20 g'},{item:'Med',amount:'1 kašika'},{item:'Cimet',amount:'1 kašikica'}],
+    steps:['Izdubi sredinu jabuka.','Napuni ih izlomljenim orasima i medom.','Pospi cimetom odozgo.','Peci u rerni na 180 stepeni oko 25 minuta.'],
+    tip:'Kašika grčkog jogurta uz toplu jabuku savršeno se slaže.'},
+
+  {id:'slatko-chia-puding', name:'Chia puding sa voćem', e:'🍮', cat:'Slatko', time:10, diff:'Lako', servings:1, kcal:250, p:10, c:25, f:12,
+    ingredients:[{item:'Chia sjemenke',amount:'30 g'},{item:'Mlijeko',amount:'200 ml'},{item:'Med',amount:'1 kašikica'},{item:'Voće po izboru',amount:'80 g'}],
+    steps:['Pomiješaj chia sjemenke sa mlijekom i medom.','Dobro promiješaj da ne bude grudvica.','Ostavi u frižideru bar 3 sata ili preko noći.','Dodaj svježe voće prije služenja.'],
+    tip:'Promiješaj puding nakon 10 minuta da se sjemenke ravnomjerno rasporede.'},
+
+  {id:'slatko-palacinke-voce', name:'Palačinke sa voćem', e:'🥞', cat:'Slatko', time:25, diff:'Srednje', servings:2, kcal:290, p:14, c:40, f:8,
+    ingredients:[{item:'Brašno',amount:'120 g'},{item:'Jaja',amount:'2 kom'},{item:'Mlijeko',amount:'250 ml'},{item:'Voće po izboru',amount:'150 g'},{item:'Ulje',amount:'1 kašika'}],
+    steps:['Umuti brašno, jaja i mlijeko u glatku smjesu.','Zagrij tiganj sa malo ulja.','Peci tanke palačinke sa obje strane.','Napuni ih svježim voćem i savij.'],
+    tip:'Umjesto šećera koristi zrelo voće za prirodnu slatkoću.'},
+
+  {id:'slatko-kolac-bez-secera', name:'Kolač od banane bez šećera', e:'🍌', cat:'Slatko', time:45, diff:'Srednje', servings:6, kcal:265, p:8, c:35, f:10,
+    ingredients:[{item:'Zrele banane',amount:'3 kom'},{item:'Jaja',amount:'2 kom'},{item:'Ovseno brašno',amount:'150 g'},{item:'Orasi',amount:'40 g'},{item:'Prašak za pecivo',amount:'1 kašikica'}],
+    steps:['Izgnječi banane viljuškom.','Umiješaj jaja pa dodaj brašno i prašak za pecivo.','Ubaci izlomljene orahe.','Sipaj smjesu u kalup i peci na 180 stepeni oko 35 minuta.'],
+    tip:'Provjeri pečenost čačkalicom, treba da izađe suva.'},
+
+  {id:'slatko-vocna-salata-jogurt', name:'Voćna salata sa jogurtom', e:'🍇', cat:'Slatko', time:10, diff:'Lako', servings:2, kcal:200, p:8, c:35, f:3,
+    ingredients:[{item:'Jabuka',amount:'1 kom'},{item:'Banana',amount:'1 kom'},{item:'Pomorandža',amount:'1 kom'},{item:'Grčki jogurt',amount:'100 g'},{item:'Med',amount:'1 kašikica'}],
+    steps:['Nasjeckaj sve voće na kockice.','Pomiješaj voće u velikoj činiji.','Dodaj kašiku meda i promiješaj.','Posluži uz kašiku grčkog jogurta.'],
+    tip:'Malo soka limuna spriječava da voće potamni.'},
+
+  {id:'slatko-skyr-torta', name:'Skyr torta bez pečenja', e:'🍰', cat:'Slatko', time:20, diff:'Srednje', servings:6, kcal:245, p:18, c:25, f:8,
+    ingredients:[{item:'Skyr',amount:'400 g'},{item:'Integralni keks',amount:'120 g'},{item:'Puter',amount:'40 g'},{item:'Med',amount:'2 kašike'},{item:'Voće za dekoraciju',amount:'100 g'}],
+    steps:['Izmrvi keks i pomiješaj sa otopljenim puterom.','Utisni smjesu na dno kalupa kao koru.','Pomiješaj skyr sa medom i rasporedi preko kore.','Ostavi u frižideru bar 3 sata da se stegne.','Ukrasi svježim voćem prije služenja.'],
+    tip:'Torta je najbolja ako odstoji preko noći u frižideru.'},
+
+  {id:'slatko-cokoladni-mus-avokado', name:'Čokoladni mus od avokada', e:'🥑', cat:'Slatko', time:10, diff:'Lako', servings:2, kcal:270, p:6, c:25, f:16,
+    ingredients:[{item:'Avokado',amount:'1 kom'},{item:'Kakao',amount:'2 kašike'},{item:'Med',amount:'2 kašike'},{item:'Mlijeko',amount:'50 ml'}],
+    steps:['Izblendaj avokado do glatke smjese.','Dodaj kakao, med i mlijeko.','Blendaj dok ne postane kremasto i sjajno.','Ohladi u frižideru 20 minuta prije služenja.'],
+    tip:'Avokado daje kremastu teksturu bez teških masnoća pavlake.'},
+
+  {id:'slatko-bananin-sladoled', name:'Bananin sladoled', e:'🍦', cat:'Slatko', time:10, diff:'Lako', servings:2, kcal:215, p:5, c:40, f:4,
+    ingredients:[{item:'Smrznute banane',amount:'3 kom'},{item:'Mlijeko',amount:'50 ml'},{item:'Kakao ili vanila',amount:'1 kašikica'}],
+    steps:['Isjeci banane i zamrzni ih bar 3 sata.','Stavi smrznute banane u blender.','Dodaj malo mlijeka i blendaj do kremaste smjese.','Posluži odmah ili kratko zamrzni za čvršću teksturu.'],
+    tip:'Kašika kikiriki putera daje bogatiji ukus sladoledu.'},
+];
+
+/* ================= KNJIGA RECEPATA ================= */
+const BOOK_CATS=['Sve','Doručak','Ručak','Večera','Užina','Posno','Slatko'];
+let _bookCat='Sve';
+function recipeUnlocked(r){ return !!r.free || !!S.pro; }
+function openBook(){ _bookCat='Sve'; let el=document.getElementById('book'); if(!el){ el=document.createElement('div'); el.id='book'; el.className='book'; document.body.appendChild(el); } renderBook(); el.scrollTop=0; }
+function closeBook(){ const el=document.getElementById('book'); if(el) el.remove(); }
+function setBookCat(c){ _bookCat=c; renderBook(); const b=document.getElementById('book'); if(b) b.scrollTop=0; }
+function renderBook(){
+  const el=document.getElementById('book'); if(!el) return;
+  const list=RECIPES.filter(r=>_bookCat==='Sve'||r.cat===_bookCat);
+  const chips=BOOK_CATS.map(c=>`<button onclick="setBookCat('${c}')" style="border:none;cursor:pointer;white-space:nowrap;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:800;background:${c===_bookCat?'var(--green2)':'var(--soft)'};color:${c===_bookCat?'#fff':'var(--green2)'}">${c}</button>`).join('');
+  const cards=list.map(r=>{
+    const locked=!recipeUnlocked(r);
+    return `<div onclick="${locked?'openPaywall()':`openBookRecipe('${r.id}')`}" style="background:var(--card);border-radius:18px;padding:13px 14px;box-shadow:var(--shadow-s);cursor:pointer;display:flex;gap:12px;align-items:center">
+      <div style="font-size:30px;flex:none">${r.e}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:15px;line-height:1.2">${r.name}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">🔥 ${r.kcal} kcal · ⏱️ ${r.time} min · ${r.diff}</div>
+      </div>
+      ${locked?'<div style="flex:none;font-size:18px">🔒</div>':'<div style="flex:none;color:var(--muted);font-size:20px">›</div>'}
+    </div>`;
+  }).join('');
+  const proCount=RECIPES.filter(r=>!r.free).length, freeCount=RECIPES.filter(r=>r.free).length;
+  el.innerHTML=`
+    <div style="position:sticky;top:0;background:var(--bg);z-index:2;padding:16px 16px 8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <b style="font-size:20px">📖 Knjiga recepata</b>
+        <button onclick="closeBook()" style="border:none;background:var(--soft);width:34px;height:34px;border-radius:999px;font-size:15px;cursor:pointer;color:var(--ink)">✕</button>
+      </div>
+      <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch">${chips}</div>
+    </div>
+    <div style="padding:6px 16px 90px;display:flex;flex-direction:column;gap:10px">
+      ${!S.pro?`<div style="background:var(--soft);border:1px solid #ffd9cc;border-radius:16px;padding:12px 14px;font-size:13px;color:var(--green2)">✦ <b>${RECIPES.length} recepata</b> — ${freeCount} besplatnih, ${proCount} uz <b>Ajmo Pro</b>. <a onclick="event.stopPropagation();openPaywall()" style="color:var(--green2);font-weight:800;text-decoration:underline;cursor:pointer">Otključaj sve</a></div>`:''}
+      ${cards||'<p class="hint" style="text-align:center;padding:20px 0">Nema recepata u ovoj kategoriji.</p>'}
+    </div>`;
+}
+function openBookRecipe(id){
+  const r=RECIPES.find(x=>x.id===id); if(!r) return;
+  if(!recipeUnlocked(r)){ openPaywall(); return; }
+  const el=document.getElementById('book'); if(!el) return;
+  const meta=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px">
+    <span style="background:var(--soft);color:var(--green2);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:800">⏱️ ${r.time} min</span>
+    <span style="background:var(--soft);color:var(--green2);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:800">📊 ${r.diff}</span>
+    <span style="background:var(--soft);color:var(--green2);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:800">🔥 ${r.kcal} kcal</span>
+    <span style="background:var(--soft);color:var(--green2);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:800">🍽️ ${r.servings} porc.</span></div>`;
+  const macro=`<div style="font-size:12.5px;color:var(--muted);margin:6px 2px 2px">B ${r.p} g · UH ${r.c} g · M ${r.f} g (po porciji)</div>`;
+  const ing=`<div style="margin:14px 0 6px"><div style="font-size:12px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Sastojci</div>${r.ingredients.map(x=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>${x.item}</span><b style="color:var(--green2)">${x.amount}</b></div>`).join('')}</div>`;
+  const steps=`<div style="margin:14px 0 6px"><div style="font-size:12px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Priprema</div>${r.steps.map((s,i)=>`<div style="display:flex;gap:10px;margin-bottom:10px"><div style="flex:none;width:24px;height:24px;border-radius:999px;background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center">${i+1}</div><div style="flex:1;font-size:14px;line-height:1.45;padding-top:2px">${s}</div></div>`).join('')}</div>`;
+  const tip=r.tip?`<div style="background:#fdeede;border-radius:14px;padding:11px 13px;font-size:13px;margin:4px 0 10px;color:#5a3a2f">💡 <b>Savjet:</b> ${r.tip}</div>`:'';
+  el.innerHTML=`
+    <div style="position:sticky;top:0;background:var(--bg);z-index:2;padding:16px 16px 8px;display:flex;align-items:center;gap:10px">
+      <button onclick="renderBook()" style="border:none;background:var(--soft);width:34px;height:34px;border-radius:999px;font-size:20px;line-height:1;cursor:pointer;color:var(--ink)">‹</button>
+      <b style="font-size:16px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.e} ${r.name}</b>
+      <button onclick="closeBook()" style="border:none;background:var(--soft);width:34px;height:34px;border-radius:999px;font-size:15px;cursor:pointer;color:var(--ink)">✕</button>
+    </div>
+    <div style="padding:4px 16px 90px">
+      ${meta}${macro}${ing}${steps}${tip}
+      <button class="cta" onclick="addRecipeToDiary('${r.id}')">+ Dodaj u dnevnik</button>
+    </div>`;
+  el.scrollTop=0;
+}
+function addRecipeToDiary(id){ const r=RECIPES.find(x=>x.id===id); if(!r) return; try{ addMeal({name:r.name,e:r.e,kc:r.kcal,p:r.p,c:r.c,f:r.f}); toast('Dodato u dnevnik ✓'); }catch(e){} }
 
 /* ================= NAV ================= */
 function go(tab){

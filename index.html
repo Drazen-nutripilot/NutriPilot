@@ -502,14 +502,14 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
       </div>
       <div class="plist">
         <div class="pitem" onclick="openInstall()"><div class="ic">📲</div><div class="lb">Instaliraj na telefon</div><div class="rt">›</div></div>
-        <div class="pitem"><div class="ic">⭐</div><div class="lb">Ocijeni aplikaciju</div><div class="rt">›</div></div>
-        <div class="pitem"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
+        <div class="pitem" onclick="openRate()"><div class="ic">⭐</div><div class="lb">Ocijeni aplikaciju</div><div class="rt">›</div></div>
+        <div class="pitem" onclick="openSupport()"><div class="ic">❓</div><div class="lb">Pomoć i podrška</div><div class="rt">›</div></div>
         <div class="pitem" onclick="openDisclaimer()"><div class="ic">⚖️</div><div class="lb">Uslovi i odricanje odgovornosti</div><div class="rt">›</div></div>
         <div class="pitem" onclick="window.open('/uslovi','_blank')"><div class="ic">📄</div><div class="lb">Uslovi korišćenja</div><div class="rt">›</div></div>
         <div class="pitem" onclick="window.open('/privatnost','_blank')"><div class="ic">🔒</div><div class="lb">Politika privatnosti</div><div class="rt">›</div></div>
         <div class="pitem" onclick="resetApp()"><div class="ic">↩️</div><div class="lb">Ponovi onboarding</div><div class="rt">›</div></div>
       </div>
-      <p class="hint" style="text-align:center">Ajmo v0.46 · demo</p>
+      <p class="hint" style="text-align:center">Ajmo v0.47 · demo</p>
     </div>
   </div>
 
@@ -2527,6 +2527,37 @@ async function doReset(){
   try{ await sbRecover(email); if(msg){ msg.style.color='var(--green2)'; msg.textContent='Poslali smo ti email sa linkom. Provjeri poštu (i spam) pa postavi novu lozinku.'; } }
   catch(e){ if(msg){ msg.style.color='#d3543f'; msg.textContent=e.message||'Greška. Pokušaj ponovo.'; } }
 }
+/* ---- Ocijeni / Podijeli / Podrška ---- */
+function shareApp(){
+  const url='https://ajmo.fit';
+  const data={ title:'Ajmo', text:'Prati kalorije na našem jeziku — samo slikaj obrok! 🔥', url };
+  if(navigator.share){ navigator.share(data).catch(()=>{}); }
+  else { try{ navigator.clipboard.writeText(url); toast('Link kopiran: '+url); }catch(e){ try{toast(url);}catch(_){} } }
+}
+function openRate(){
+  sheet(`<div class="grip"></div><h3>⭐ Sviđa ti se Ajmo?</h3>
+    <p class="hint">Tvoj utisak nam puno znači. Pošalji nam par riječi ili podijeli Ajmo sa prijateljima.</p>
+    <button class="cta" onclick="location.href='mailto:info@aquaelektro.com?subject=Utisak%20o%20Ajmo%20aplikaciji'">✉️ Pošalji nam utisak</button>
+    <button class="cta" style="background:var(--soft);color:var(--green2);margin-top:10px" onclick="shareApp()">📣 Podijeli Ajmo</button>
+    <p class="hint" style="margin-top:12px;text-align:center">Uskoro i na App Store / Google Play — tamo ćeš moći da nas ocijeniš zvjezdicama.</p>`);
+}
+function openSupport(){
+  sheet(`<div class="grip"></div><h3>❓ Pomoć i podrška</h3>
+    <p class="hint">Imaš pitanje ili problem? Tu smo — javi nam se.</p>
+    <button class="cta" onclick="location.href='mailto:info@aquaelektro.com?subject=Podr%C5%A1ka%20-%20Ajmo'">✉️ Kontaktiraj podršku</button>
+    <div style="margin-top:16px;font-size:13.5px;line-height:1.5;color:var(--fg)">
+      <div style="font-weight:800;margin-bottom:6px">Česta pitanja</div>
+      <p style="margin:6px 0"><b>Kako da dodam obrok?</b><br>Na ekranu „Danas" dodaj obrok ručno, sa slike (📸) ili preko barkoda.</p>
+      <p style="margin:6px 0"><b>Kako da promijenim cilj ili podatke?</b><br>Profil → „Cilj i podaci".</p>
+      <p style="margin:6px 0"><b>Kako da otkažem pretplatu?</b><br>Otkaži bilo kad — javi nam na email ili preko linka u mejlu potvrde uplate. Pro ostaje aktivan do kraja plaćenog perioda.</p>
+      <p style="margin:6px 0"><b>Zaboravljena lozinka?</b><br>Na ekranu za prijavu klikni „Zaboravljena lozinka?".</p>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button onclick="window.open('/uslovi','_blank')" style="flex:1;border:none;border-radius:12px;padding:11px;font-weight:800;font-size:13px;cursor:pointer;background:var(--soft);color:var(--green2)">Uslovi</button>
+      <button onclick="window.open('/privatnost','_blank')" style="flex:1;border:none;border-radius:12px;padding:11px;font-weight:800;font-size:13px;cursor:pointer;background:var(--soft);color:var(--green2)">Privatnost</button>
+    </div>`);
+}
+
 /* ---- Odricanje odgovornosti / uslovi ---- */
 function openDisclaimer(){
   sheet(`<div class="grip"></div><h3>⚖️ Uslovi korišćenja i odricanje odgovornosti</h3>

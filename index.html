@@ -639,9 +639,11 @@ function projSvg(p){
     <text x="${X(n-1).toFixed(1)}" y="${(Y(pts[n-1])-12).toFixed(1)}" font-size="14" font-weight="800" fill="#12a05e" text-anchor="end">${tw} kg</text>
   </svg>`;
 }
+function pickPlanOb(p){ selPlan=p; document.querySelectorAll('#obPlans .plan').forEach(function(el){ el.classList.toggle('sel', el.dataset.p===p); }); }
 function payHook(){
-  if(!loggedIn()){ requireAuth(()=>{ _completeOnboard(); startCheckout('year'); }); return; }
-  _completeOnboard(); startCheckout('year');
+  var p=selPlan||'year';
+  if(!loggedIn()){ requireAuth(()=>{ _completeOnboard(); startCheckout(p); }); return; }
+  _completeOnboard(); startCheckout(p);
 }
 
 const STEPS=[
@@ -755,7 +757,13 @@ const STEPS=[
     <div style="text-align:left;background:var(--card2);border-radius:16px;padding:14px 18px;margin:12px 0">
       ${['Neograničeno slikanje obroka (AI)','Detaljni planovi ishrane + posni set','Planovi treninga po cilju i polu','Napredna analiza i projekcija do cilja','Bez reklama'].map(f=>`<div style="display:flex;gap:10px;align-items:flex-start;margin:9px 0"><span style="color:var(--green2);font-weight:800">✓</span><span style="font-size:14px">${f}</span></div>`).join('')}
     </div>
-    <div style="font-weight:800;font-size:20px">€24.99 <span style="color:var(--muted);font-weight:600;font-size:14px">/ godišnje (≈ €2.08/mj)</span></div>
+    <div class="plans" id="obPlans" style="margin:6px 0 10px">
+      <div class="plan sel" data-p="year" onclick="pickPlanOb('year')"><div class="rd"></div>
+        <div><div class="pn">Godišnje</div><div class="pd">24,99€/god · ušteda</div></div>
+        <div class="pp"><b>2,08€</b><span>/ mjesec</span></div></div>
+      <div class="plan" data-p="month" onclick="pickPlanOb('month')"><div class="rd"></div>
+        <div><div class="pn">Mjesečno</div><div class="pd">Otkaži bilo kada</div></div>
+        <div class="pp"><b>4,99€</b><span>/ mjesec</span></div></div></div>
     <p class="sub" style="margin:4px 0 12px">Počni sa <b>3 dana besplatno</b> — otkaži bilo kad.</p>
     <button class="cta" onclick="payHook()">Počni — 3 dana besplatno</button>
     <div style="margin-top:12px"><a onclick="finishOnboard()" style="color:var(--muted);font-size:13px;cursor:pointer">Nastavi sa besplatnom verzijom</a></div></div>`

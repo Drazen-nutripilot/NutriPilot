@@ -2819,12 +2819,14 @@ async function checkProStatus(){
   if(!loggedIn()) return;
   try{
     const email=(_sess()||{}).email||'';
-    const q=SB_URL+'/rest/v1/pro_users?select=active&email=eq.'+encodeURIComponent(email);
+    const q=SB_URL+'/rest/v1/pro_users?select=active,expires_at&email=eq.'+encodeURIComponent(email);
     let r=await fetch(q,{headers:_ah(true)});
     if(r.status===401 && await sbRefresh()) r=await fetch(q,{headers:_ah(true)});
     if(!r.ok) return;
     const arr=await r.json().catch(()=>[]);
-    const active = Array.isArray(arr)&&arr[0]&&arr[0].active===true;
+    const row = (Array.isArray(arr)&&arr[0]) ? arr[0] : null;
+    let active = !!(row && row.active===true);
+    if(active && row.expires_at){ active = (new Date(row.expires_at).getTime() > Date.now()); } // istekla poklon-pretplata → nije Pro
     if(!!active!==!!S.pro){ S.pro=!!active; save(); try{renderProfile();renderProgress();}catch(e){} }
   }catch(e){}
 }

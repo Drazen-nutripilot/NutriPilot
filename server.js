@@ -663,6 +663,13 @@ async function handleWaitlist(reqBody,res){
 
 http.createServer(async (req, res) => {
   try {
+    // CORS za native aplikaciju (Capacitor) i web
+    if (req.url.startsWith('/api/')) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+    }
     if (req.method === 'GET' && req.url.startsWith('/api/health')) {
       return json(res, 200, { ok: true, model: MODEL, vision: VISION_MODEL, keySet: !!API_KEY });
     }

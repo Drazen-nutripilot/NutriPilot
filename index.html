@@ -535,6 +535,9 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
 </div>
 
 <script>
+/* API baza: '' na web-u (ajmo.fit), apsolutno na native aplikaciji (Capacitor) */
+const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const API = IS_NATIVE ? 'https://ajmo.fit' : '';
 /* ================= STATE ================= */
 const S = {
   onboarded:false, pro:false, theme:'light', notif:true,
@@ -1284,7 +1287,7 @@ function go(tab){
 
 /* ================= AI: procjena obroka ================= */
 async function apiEstimate(payload){
-  const r=await fetch('/api/estimate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const r=await fetch(API+'/api/estimate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||('HTTP '+r.status));}
   return r.json();
 }
@@ -1818,7 +1821,7 @@ async function makePlan(){
   }
   try{
     const avoid=Array.isArray(S.aiRecent)?S.aiRecent.slice(-16):[];
-    const r=await fetch('/api/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({targetKcal:S.target.kcal,protein:S.target.p,goal:GOALS[S.goal].t,seed:S.planIdx,avoid})});
+    const r=await fetch(API+'/api/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({targetKcal:S.target.kcal,protein:S.target.p,goal:GOALS[S.goal].t,seed:S.planIdx,avoid})});
     if(!r.ok)throw new Error('server');
     const data=await r.json();
     S.aiRecent=(S.aiRecent||[]).concat((data.meals||[]).map(m=>m.name)).slice(-24); save();
@@ -1932,7 +1935,7 @@ async function openRecipe(i){
   try{
     let r=S.recipeCache[m.name];
     if(!r){
-      const resp=await fetch('/api/recipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:m.name,ingredients:m.ingredients||[],kcal:m.kcal})});
+      const resp=await fetch(API+'/api/recipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:m.name,ingredients:m.ingredients||[],kcal:m.kcal})});
       if(!resp.ok) throw new Error('server');
       r=await resp.json();
       if(!r.steps||!r.steps.length) throw new Error('empty');
@@ -2406,7 +2409,7 @@ async function coachAsk(q){
   q=q||$('coachInput').value.trim(); if(!q)return; if($('coachInput'))$('coachInput').value='';
   $('coachBig').innerHTML='⏳ Trener razmišlja…';
   const context={goal:S.goal,targetKcal:S.target.kcal,eatenKcal:Math.round(S.eaten.kcal),leftKcal:Math.round(S.target.kcal-S.eaten.kcal),streak:S.streak};
-  try{ const r=await fetch('/api/coach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,context})});
+  try{ const r=await fetch(API+'/api/coach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,context})});
     if(!r.ok)throw 0; const d=await r.json(); $('coachBig').innerHTML=d.answer||coachLocal(q);
   }catch(e){ $('coachBig').innerHTML=coachLocal(q); }
 }
@@ -2511,7 +2514,7 @@ async function lookupBarcode(code){
   code=String(code||'').replace(/[^0-9]/g,''); if(!code){ if($('scanMsg'))$('scanMsg').textContent='Unesi ispravan broj barkoda.'; return; }
   stopScan(); if($('scanMsg'))$('scanMsg').textContent='Tražim proizvod…';
   try{
-    const r=await fetch('/api/barcode?code='+encodeURIComponent(code));
+    const r=await fetch(API+'/api/barcode?code='+encodeURIComponent(code));
     const d=await r.json();
     closeScanner();
     if(!d.found){ toast('Proizvod nije u bazi — dodaj ručno ili slikaj'); openAdd(S.addSlot); return; }

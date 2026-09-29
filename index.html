@@ -538,6 +538,11 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
 /* API baza: '' na web-u (ajmo.fit), apsolutno na native aplikaciji (Capacitor) */
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const API = IS_NATIVE ? 'https://ajmo.fit' : '';
+/* lagana analitika — samo naziv događaja, bez ličnih podataka */
+function track(e){ try{ var u=API+'/api/ev', body=JSON.stringify({e:e});
+  if(navigator.sendBeacon){ navigator.sendBeacon(u, new Blob([body],{type:'application/json'})); }
+  else { fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true}); }
+}catch(_){}}
 /* ================= STATE ================= */
 const S = {
   onboarded:false, pro:false, theme:'light', notif:true,
@@ -644,6 +649,7 @@ function projSvg(p){
 }
 function pickPlanOb(p){ selPlan=p; document.querySelectorAll('#obPlans .plan').forEach(function(el){ el.classList.toggle('sel', el.dataset.p===p); }); }
 function payHook(){
+  track('checkout');
   var p=selPlan||'year';
   if(!loggedIn()){ requireAuth(()=>{ _completeOnboard(); startCheckout(p); }); return; }
   _completeOnboard(); startCheckout(p);
@@ -696,7 +702,7 @@ const STEPS=[
       </div>
       <div class="chips"><span>🏠 Domaća jela</span><span>🗣️ Naš jezik</span><span>🏋️ Trening + ishrana</span></div>
       <div class="trust"><b>★★★★★</b> Napravljeno za naš region</div>
-      <button class="cta" onclick="obNext()">Napravi nalog →</button>
+      <button class="cta" onclick="obNext()">Kreni →</button>
       <button class="cta" style="background:var(--soft);color:var(--green2);margin-top:10px" onclick="openAuth()">Već imam nalog — Prijavi se</button>
     </div></div>`,
   // 1 goal
@@ -767,15 +773,16 @@ const STEPS=[
       <div class="plan" data-p="month" onclick="pickPlanOb('month')"><div class="rd"></div>
         <div><div class="pn">Mjesečno</div><div class="pd">Otkaži bilo kada</div></div>
         <div class="pp"><b>4,99€</b><span>/ mjesec</span></div></div></div>
-    <p class="sub" style="margin:4px 0 12px">Počni sa <b>3 dana besplatno</b> — otkaži bilo kad.</p>
-    <button class="cta" onclick="payHook()">Počni — 3 dana besplatno</button>
-    <div style="margin-top:12px"><a onclick="finishOnboard()" style="color:var(--muted);font-size:13px;cursor:pointer">Nastavi sa besplatnom verzijom</a></div></div>`
+    <p class="sub" style="margin:4px 0 12px">Uđi odmah i probaj besplatno — <b>bez kartice, bez naloga</b>. Pro uključiš kad poželiš.</p>
+    <button class="cta" onclick="finishOnboard()">Uđi besplatno →</button>
+    <div style="margin-top:14px"><a onclick="payHook()" style="color:var(--pro);font-size:13.5px;font-weight:800;cursor:pointer;text-decoration:underline">Ili probaj Ajmo Pro — 3 dana besplatno</a></div></div>`
 ];
 function renderStep(){
   $('obStep').innerHTML=STEPS[obI]();
   $('obBar').style.width=(6.25+obI/(STEPS.length-1)*93.75)+'%';
   $('obBack').style.visibility = (obI===0||obI>=5)?'hidden':'visible';
   if(obI===0) startIntroDemo(); else stopIntroDemo();
+  if(obI===8) track('paywall');
 }
 /* ====== INTRO DEMO: rotacija jela + suptilni zvuk ====== */
 let _ajActx=null;
@@ -852,10 +859,10 @@ function computeAndReveal(){
 let _authCb=null;
 function requireAuth(cb){ _authCb=cb; openAuth(); }
 function finishOnboard(){
-  if(!loggedIn()){ requireAuth(_completeOnboard); return; }  // NALOG OBAVEZAN
-  _completeOnboard();
+  _completeOnboard();   // besplatna verzija — BEZ naloga; prijava kasnije (profil) za sinhronizaciju/Pro
 }
 function _completeOnboard(){
+  if(!S.onboarded) track('app_enter');
   S.onboarded=true; S.lastDate=todayStr();
   resetForNewUser();
   revealApp(); renderAll(); save();

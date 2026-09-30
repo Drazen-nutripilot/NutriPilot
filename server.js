@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -109,19 +110,32 @@ if (!API_KEY) {
 
 /* ---------- poziv Anthropic Messages API-ja (preko fetch) ---------- */
 const API_BASE = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
-async function anthropic(body) {
-  const r = await fetch(`${API_BASE}/v1/messages`, {
-    method: 'POST',
-    headers: {
-      'x-api-key': API_KEY,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  });
-  const data = await r.json();
-  if (!r.ok) throw new Error(data?.error?.message || `API HTTP ${r.status}`);
-  return data;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Timeout + jedan ponovni pokušaj kad je API preopterećen (429/5xx); greške nose .status za prijateljsku poruku.
+async function anthropic(body, tries = 2) {
+  for (let i = 0; ; i++) {
+    let r;
+    try {
+      r = await fetch(`${API_BASE}/v1/messages`, {
+        method: 'POST',
+        headers: {
+          'x-api-key': API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(45000)
+      });
+    } catch (e) {
+      if (i < tries - 1) { await sleep(800); continue; }
+      const err = new Error('AI timeout/network: ' + (e?.message || e)); err.status = 504; throw err;
+    }
+    let data = {};
+    try { data = await r.json(); } catch {}
+    if (r.ok) return data;
+    if ((r.status === 429 || r.status >= 500) && i < tries - 1) { await sleep(1200 * (i + 1)); continue; }
+    const err = new Error(data?.error?.message || `API HTTP ${r.status}`); err.status = r.status; throw err;
+  }
 }
 
 /* ---------- strukturisan izlaz preko "tool use" ---------- */
@@ -185,12 +199,18 @@ const SYSTEM_FOOD = [
 /* ---------- handleri ---------- */
 async function handleEstimate(reqBody, res) {
   if (!API_KEY) return json(res, 500, { error: 'Server nema ANTHROPIC_API_KEY.' });
-  const { text, imageBase64, mediaType } = reqBody || {};
+  let { text, imageBase64, mediaType } = reqBody || {};
+  text = typeof text === 'string' ? text.trim().slice(0, 1000) : '';
+  imageBase64 = typeof imageBase64 === 'string' ? imageBase64.replace(/^data:[^,]*,/, '') : '';
   if (!text && !imageBase64) return json(res, 400, { error: 'Pošalji text ili imageBase64.' });
+  if (imageBase64 && (imageBase64.length < 200 || imageBase64.length > MAX_IMAGE_B64 || !/^[A-Za-z0-9+/=\s]+$/.test(imageBase64.slice(0, 4096)))) {
+    return json(res, 400, { error: 'Slika nije ispravna ili je prevelika. Probaj ponovo.' });
+  }
+  if (!IMAGE_TYPES.has(mediaType)) mediaType = 'image/jpeg';
 
   const content = [];
   if (imageBase64) {
-    content.push({ type: 'image', source: { type: 'base64', media_type: mediaType || 'image/jpeg', data: imageBase64 } });
+    content.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } });
   }
   content.push({ type: 'text', text: text ? `Obrok (opis korisnika): ${text}` : 'Procijeni hranu koja se vidi na slici.' });
 
@@ -210,10 +230,10 @@ async function handleEstimate(reqBody, res) {
     name: toLatin(it.name),
     emoji: it.emoji || '🍽️',
     quantity: toLatin(it.quantity || ''),
-    kcal: Math.round(it.kcal || 0),
-    protein_g: Math.round(it.protein_g || 0),
-    carbs_g: Math.round(it.carbs_g || 0),
-    fat_g: Math.round(it.fat_g || 0)
+    kcal: nn(it.kcal, 5000),
+    protein_g: nn(it.protein_g, 500),
+    carbs_g: nn(it.carbs_g, 800),
+    fat_g: nn(it.fat_g, 500)
   }));
   const total = items.reduce(
     (a, it) => ({
@@ -287,10 +307,12 @@ const RECIPE_TOOL = {
 
 async function handleRecipe(reqBody, res) {
   if (!API_KEY) return json(res, 500, { error: 'Server nema ANTHROPIC_API_KEY.' });
-  const { name, ingredients, kcal, servings } = reqBody || {};
+  const { ingredients, servings } = reqBody || {};
+  const name = str(reqBody && reqBody.name, 120);
+  const kcal = nn(reqBody && reqBody.kcal, 5000);
   if (!name) return json(res, 400, { error: 'Pošalji name.' });
   const ingList = Array.isArray(ingredients) && ingredients.length
-    ? ingredients.map((x) => `${x.item} ${x.amount || ''}`.trim()).join(', ')
+    ? ingredients.slice(0, 30).map((x) => `${str(x && x.item, 60)} ${str(x && x.amount, 30)}`.trim()).join(', ')
     : '';
   const prompt =
     `Napiši recept korak-po-korak za jelo: "${name}"` +
@@ -323,9 +345,12 @@ async function handleRecipe(reqBody, res) {
 
 async function handlePlan(reqBody, res) {
   if (!API_KEY) return json(res, 500, { error: 'Server nema ANTHROPIC_API_KEY.' });
-  const { targetKcal, protein, goal, preferences, seed } = reqBody || {};
-  const avoid = Array.isArray(reqBody && reqBody.avoid) ? reqBody.avoid.filter(Boolean).slice(0, 24) : [];
-  const kcal = targetKcal || 2000;
+  const b = reqBody || {};
+  const goal = str(b.goal, 40), preferences = str(b.preferences, 300), seed = nn(b.seed, 1e6);
+  const avoid = Array.isArray(b.avoid) ? b.avoid.slice(0, 24).map((x) => str(x, 80)).filter(Boolean) : [];
+  // Sigurnosni pod/plafon: plan nikad ispod 1200 kcal (zdravstvena preporuka) ni iznad 4500.
+  const kcal = Math.min(4500, Math.max(1200, nn(b.targetKcal, 4500) || 2000));
+  const protein = Math.min(300, nn(b.protein, 300));
   const prompt =
     `Napravi plan obroka za jedan dan sa ukupno oko ${kcal} kcal (cilj: ${goal || 'održati'}). ` +
     `Ciljaj oko ${protein || Math.round((kcal * 0.3) / 4)} g proteina. ` +
@@ -353,10 +378,10 @@ async function handlePlan(reqBody, res) {
     slot: toLatin(m.slot || 'Obrok'),
     name: toLatin(m.name),
     emoji: m.emoji || '🍽️',
-    kcal: Math.round(m.kcal || 0),
-    protein_g: Math.round(m.protein_g || 0),
-    carbs_g: Math.round(m.carbs_g || 0),
-    fat_g: Math.round(m.fat_g || 0),
+    kcal: nn(m.kcal, 3000),
+    protein_g: nn(m.protein_g, 300),
+    carbs_g: nn(m.carbs_g, 500),
+    fat_g: nn(m.fat_g, 300),
     ingredients: Array.isArray(m.ingredients) ? m.ingredients.map((x) => ({ item: toLatin(x.item), amount: toLatin(x.amount) })) : [],
     recipe: toLatin(m.recipe || '')
   }));
@@ -366,11 +391,12 @@ async function handlePlan(reqBody, res) {
 
 async function handleCoach(reqBody, res) {
   if (!API_KEY) return json(res, 500, { error: 'Server nema ANTHROPIC_API_KEY.' });
-  const { question, context } = reqBody || {};
+  const question = str(reqBody && reqBody.question, 500);
+  const context = reqBody && typeof reqBody.context === 'object' ? reqBody.context : null;
   if (!question) return json(res, 400, { error: 'Pošalji question.' });
 
   const ctx = context
-    ? `Kontekst korisnika: cilj ${context.goal}, dnevni cilj ${context.targetKcal} kcal, uneseno ${context.eatenKcal} kcal, preostalo ${context.leftKcal} kcal, streak ${context.streak} dana.`
+    ? `Kontekst korisnika: cilj ${str(context.goal, 40)}, dnevni cilj ${nn(context.targetKcal, 9999)} kcal, uneseno ${nn(context.eatenKcal, 99999)} kcal, preostalo ${Math.round(Number(context.leftKcal) || 0)} kcal, streak ${nn(context.streak, 9999)} dana.`
     : '';
 
   const data = await anthropic({
@@ -391,7 +417,7 @@ async function handleBarcode(code, res) {
   if (!code) return json(res, 400, { error: 'Nema barkoda.' });
   try {
     const url = `https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_sr,generic_name,brands,nutriments`;
-    const r = await fetch(url, { headers: { 'User-Agent': 'NutriPilot/1.0 (kontakt@nutripilot.app)' } });
+    const r = await fetch(url, { headers: { 'User-Agent': 'Ajmo/1.0 (https://ajmo.fit)' }, signal: AbortSignal.timeout(10000) });
     const d = await r.json();
     if (!d || d.status !== 1 || !d.product) return json(res, 200, { found: false });
     const p = d.product, n = p.nutriments || {};
@@ -428,69 +454,154 @@ function serveStatic(req, res) {
     res.writeHead(404); return res.end('Not found');
   }
   if (base === 'index.html') track('visit');
-  res.writeHead(200, { 'Content-Type': MIME[ext] });
+  const headers = { 'Content-Type': MIME[ext], 'Vary': 'Accept-Encoding' };
+  if (ext === '.html') headers['Cache-Control'] = 'no-cache'; // uvijek provjeri novu verziju posle deploya
+  // gzip za tekstualne fajlove (index.html ~766 KB → ~4x manje), keširano dok se fajl ne promijeni
+  if (GZIP_EXT.has(ext) && /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''))) {
+    const st = fs.statSync(file), key = file + ':' + st.mtimeMs;
+    let gz = _gzCache.get(file);
+    if (!gz || gz.key !== key) { gz = { key, buf: zlib.gzipSync(fs.readFileSync(file), { level: 9 }) }; _gzCache.set(file, gz); }
+    res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip', 'Content-Length': gz.buf.length });
+    return res.end(gz.buf);
+  }
+  res.writeHead(200, headers);
   fs.createReadStream(file).pipe(res);
 }
+const GZIP_EXT = new Set(['.html', '.css', '.svg', '.webmanifest']);
+const _gzCache = new Map();
 
 /* ---------- helpers ---------- */
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(obj));
 }
-function readBody(req) {
-  return new Promise((resolve) => {
-    let d = '';
-    req.on('data', (c) => (d += c));
-    req.on('end', () => { try { resolve(JSON.parse(d || '{}')); } catch { resolve({}); } });
+const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+const nn = (v, max) => Math.min(max, Math.max(0, Math.round(Number(v) || 0))); // broj ≥ 0, sa plafonom
+const MAX_IMAGE_B64 = 7 * 1024 * 1024; // ~5 MB slika
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
+// Čita tijelo kao Buffer (ispravno za č/ć/š preko granica chunk-ova) i odbija prevelike zahtjeve.
+function readRaw(req, limit = 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let size = 0, done = false;
+    req.on('data', (c) => {
+      if (done) return;
+      size += c.length;
+      if (size > limit) { done = true; const e = new Error('Payload too large'); e.status = 413; reject(e); req.resume(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => { if (!done) { done = true; resolve(Buffer.concat(chunks).toString('utf8')); } });
+    req.on('error', (e) => { if (!done) { done = true; reject(e); } });
   });
 }
+async function readBody(req, limit = 64 * 1024) {
+  const raw = await readRaw(req, limit);
+  try { const v = JSON.parse(raw || '{}'); return v && typeof v === 'object' ? v : {}; } catch { return {}; }
+}
+
+/* ---------- zaštita AI ruta: ograničenje po IP-u + dnevni plafon troška ---------- */
+// Brojevi se mogu podesiti env varijablama bez izmjene koda.
+const AI_LIMITS = {
+  estimate: +process.env.LIMIT_ESTIMATE || 60,
+  plan: +process.env.LIMIT_PLAN || 25,
+  recipe: +process.env.LIMIT_RECIPE || 40,
+  coach: +process.env.LIMIT_COACH || 40
+};
+const AI_PER_MINUTE = +process.env.LIMIT_PER_MINUTE || 10;
+const AI_DAILY_CAP = +process.env.AI_DAILY_CAP || 5000; // svi korisnici zajedno, štiti Anthropic račun
+const _rl = new Map(); let _rlDay = '', _aiToday = 0;
+function clientIp(req) {
+  const xf = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return xf || req.socket.remoteAddress || '?';
+}
+function aiAllowed(route, ip) {
+  const day = new Date().toISOString().slice(0, 10);
+  if (day !== _rlDay) { _rlDay = day; _rl.clear(); _aiToday = 0; }
+  if (_aiToday >= AI_DAILY_CAP) return 'cap';
+  const now = Date.now();
+  const k = ip + '|' + route, m = ip + '|min';
+  const cnt = _rl.get(k) || 0;
+  if (cnt >= (AI_LIMITS[route] || 20)) return 'day';
+  const win = (_rl.get(m) || []).filter((t) => now - t < 60000);
+  if (win.length >= AI_PER_MINUTE) return 'minute';
+  win.push(now); _rl.set(m, win); _rl.set(k, cnt + 1); _aiToday++;
+  return 'ok';
+}
+async function aiRoute(route, handler, req, res, bodyLimit) {
+  const verdict = aiAllowed(route, clientIp(req));
+  if (verdict !== 'ok') {
+    if (verdict === 'cap') console.error(`AI_DAILY_CAP (${AI_DAILY_CAP}) dostignut — AI pozivi pauzirani do ponoći UTC`);
+    return json(res, 429, { error: verdict === 'minute' ? 'Previše zahtjeva zaredom — sačekaj minut pa probaj ponovo.' : 'Dostignut je dnevni limit AI zahtjeva. Probaj ponovo sjutra.' });
+  }
+  try {
+    return await handler(await readBody(req, bodyLimit), res);
+  } catch (e) {
+    console.error(`/api/${route} error:`, e?.status || '', e?.message || e);
+    if (res.headersSent) return;
+    if (e?.status === 413) return json(res, 413, { error: 'Slika je prevelika. Probaj ponovo.' });
+    if (e?.status === 429 || e?.status === 529 || e?.status === 503) return json(res, 503, { error: 'AI je trenutno zauzet — probaj ponovo za minut.' });
+    if (e?.status === 504) return json(res, 504, { error: 'AI se nije javio na vrijeme — probaj ponovo.' });
+    return json(res, 502, { error: 'AI procjena trenutno nije uspjela — probaj ponovo.' });
+  }
+}
+
+/* ---------- CORS: samo naš web i native aplikacija (Capacitor) ---------- */
+const ALLOWED_ORIGINS = new Set([
+  'https://ajmo.fit', 'https://www.ajmo.fit',
+  'capacitor://localhost', 'ionic://localhost', 'https://localhost', 'http://localhost',
+  `http://localhost:${process.env.PORT || 3000}`,
+  ...String(process.env.EXTRA_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean)
+]);
 
 /* ---------- Lemon Squeezy webhook (otključava Pro) ---------- */
-function readRaw(req){ return new Promise((resolve)=>{ let d=''; req.on('data',(c)=>d+=c); req.on('end',()=>resolve(d)); }); }
 async function sbAdmin(pathq, method, body){
   const headers={ 'apikey':SUPABASE_SERVICE_KEY, 'Authorization':'Bearer '+SUPABASE_SERVICE_KEY, 'Content-Type':'application/json' };
   if(method==='POST') headers['Prefer']='resolution=merge-duplicates,return=minimal';
   return fetch(SUPABASE_URL+'/rest/v1/'+pathq, { method, headers, body: body?JSON.stringify(body):undefined });
 }
+const safeEq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
+// Upis Pro statusa; baca grešku ako Supabase odbije, da provajder plaćanja ponovi webhook.
+async function setPro(email, active){
+  if(!SUPABASE_SERVICE_KEY) throw new Error('SUPABASE_SERVICE_KEY nije postavljen');
+  const r = await sbAdmin('pro_users?on_conflict=email', 'POST', [{ email, active, updated_at: new Date().toISOString() }]);
+  if(!r.ok) throw new Error('Supabase pro_users upsert HTTP ' + r.status);
+}
 async function handleLsWebhook(req, res){
-  const raw = await readRaw(req);
+  // Bez tajnog ključa webhook je zatvoren — inače bi svako mogao sebi "kupiti" Pro.
+  if(!LS_WEBHOOK_SECRET){ console.error('LS_WEBHOOK_SECRET nije postavljen — webhook odbijen'); res.writeHead(503); return res.end('not configured'); }
+  let raw;
+  try { raw = await readRaw(req, 1024 * 1024); } catch { res.writeHead(413); return res.end('too large'); }
+  if(!safeEq(crypto.createHmac('sha256', LS_WEBHOOK_SECRET).update(raw).digest('hex'), req.headers['x-signature'] || '')){
+    res.writeHead(401); return res.end('bad signature');
+  }
+  let payload; try{ payload=JSON.parse(raw||'{}'); }catch{ res.writeHead(400); return res.end('bad json'); }
+  const event = (payload.meta && payload.meta.event_name) || '';
+  // Samo događaji pretplate mijenjaju Pro (ranije je npr. order_created gasio Pro plaćenim korisnicima).
+  if(event.indexOf('subscription_')!==0){ res.writeHead(200); return res.end('ignored'); }
+  const attr = (payload.data && payload.data.attributes) || {};
+  const custom = (payload.meta && payload.meta.custom_data) || {};
+  const email = String(attr.user_email || custom.email || '').toLowerCase();
+  const active = ['active','on_trial','past_due'].includes(attr.status || '');
   try{
-    const sig = req.headers['x-signature'] || '';
-    if(LS_WEBHOOK_SECRET){
-      const digest = crypto.createHmac('sha256', LS_WEBHOOK_SECRET).update(raw).digest('hex');
-      const a = Buffer.from(digest), b = Buffer.from(String(sig));
-      if(a.length!==b.length || !crypto.timingSafeEqual(a,b)){ res.writeHead(401); return res.end('bad signature'); }
-    } else { console.warn('LS_WEBHOOK_SECRET nije postavljen — preskačem provjeru potpisa'); }
-  }catch(e){ res.writeHead(401); return res.end('sig error'); }
-  let payload={}; try{ payload=JSON.parse(raw||'{}'); }catch(e){}
-  try{
-    const event = (payload && payload.meta && payload.meta.event_name) || '';
-    const attr = (payload && payload.data && payload.data.attributes) || {};
-    const custom = (payload && payload.meta && payload.meta.custom_data) || {};
-    const email = String(attr.user_email || custom.email || '').toLowerCase();
-    const status = attr.status || ''; // active, on_trial, past_due, paused, unpaid, cancelled, expired
-    const active = event.indexOf('subscription_')===0 ? ['active','on_trial','past_due'].includes(status) : false;
-    if(email && SUPABASE_SERVICE_KEY){
-      await sbAdmin('pro_users?on_conflict=email', 'POST', [{ email, active, updated_at: new Date().toISOString() }]);
-    }
+    if(email) await setPro(email, active);
     res.writeHead(200, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ ok:true }));
-  }catch(e){ console.error('LS webhook err:', e && e.message || e); res.writeHead(200); return res.end('ok'); }
+  }catch(e){ console.error('LS webhook err:', e && e.message || e); res.writeHead(500); return res.end('retry'); }
 }
 
 /* ---------- Paddle webhook (pretplate → pro_users) ---------- */
 async function handlePaddleWebhook(req, res){
+  if(!PADDLE_WEBHOOK_SECRET){ console.error('PADDLE_WEBHOOK_SECRET nije postavljen — webhook odbijen'); res.writeHead(503); return res.end('not configured'); }
   try{
-    const raw = await readRaw(req);
-    const sig = req.headers['paddle-signature'] || '';
+    const raw = await readRaw(req, 1024 * 1024);
+    const sig = String(req.headers['paddle-signature'] || '');
     // Paddle-Signature: ts=...;h1=...
     const parts = {};
     sig.split(';').forEach(kv=>{ const i=kv.indexOf('='); if(i>0) parts[kv.slice(0,i).trim()]=kv.slice(i+1).trim(); });
     const ts = parts.ts, h1 = parts.h1;
-    if(PADDLE_WEBHOOK_SECRET){
-      if(!ts || !h1){ res.writeHead(400); return res.end('missing signature'); }
-      const hmac = crypto.createHmac('sha256', PADDLE_WEBHOOK_SECRET).update(ts + ':' + raw).digest('hex');
-      if(hmac !== h1){ console.error('Paddle bad signature'); res.writeHead(400); return res.end('bad signature'); }
-    }
+    if(!ts || !h1){ res.writeHead(400); return res.end('missing signature'); }
+    const hmac = crypto.createHmac('sha256', PADDLE_WEBHOOK_SECRET).update(ts + ':' + raw).digest('hex');
+    if(!safeEq(hmac, h1)){ console.error('Paddle bad signature'); res.writeHead(400); return res.end('bad signature'); }
+    if(Math.abs(Date.now()/1000 - Number(ts)) > 300){ res.writeHead(400); return res.end('stale signature'); } // zaštita od ponavljanja starih poruka
     const evt = JSON.parse(raw || '{}');
     const type = evt.event_type || '';
     const data = evt.data || {};
@@ -504,11 +615,13 @@ async function handlePaddleWebhook(req, res){
       active = true;
       track('purchase');
     }
-    if(email && active !== null && SUPABASE_SERVICE_KEY){
-      await sbAdmin('pro_users?on_conflict=email', 'POST', [{ email, active, updated_at: new Date().toISOString() }]);
-    }
+    if(email && active !== null) await setPro(email, active);
     res.writeHead(200, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ ok:true }));
-  }catch(e){ console.error('Paddle webhook err:', e && e.message || e); res.writeHead(200); return res.end('ok'); }
+  }catch(e){
+    console.error('Paddle webhook err:', e && e.message || e);
+    // 500 => Paddle ponovo šalje događaj, pa se aktivacija Pro-a ne gubi tiho.
+    res.writeHead(e && e.status === 413 ? 413 : 500); return res.end('retry');
+  }
 }
 
 /* ---------- server ---------- */
@@ -700,9 +813,13 @@ http.createServer(async (req, res) => {
   try {
     // CORS za native aplikaciju (Capacitor) i web
     if (req.url.startsWith('/api/')) {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      const origin = req.headers.origin;
+      if (origin && ALLOWED_ORIGINS.has(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      }
       if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
     }
     if (req.method === 'GET' && req.url.startsWith('/api/health')) {
@@ -721,14 +838,15 @@ http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && req.url.split('?')[0] === '/api/stats') {
       const k = new URL(req.url, 'http://x').searchParams.get('k');
-      if (!STATS_KEY || k !== STATS_KEY) { res.writeHead(404); return res.end('Not found'); }
+      if (!STATS_KEY || !safeEq(k || '', STATS_KEY)) { res.writeHead(404); return res.end('Not found'); }
       res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store' });
       return res.end(statsPage());
     }
-    if (req.method === 'POST' && req.url.startsWith('/api/estimate')) { track('estimate'); return handleEstimate(await readBody(req), res); }
-    if (req.method === 'POST' && req.url.startsWith('/api/plan')) return handlePlan(await readBody(req), res);
-    if (req.method === 'POST' && req.url.startsWith('/api/recipe')) return handleRecipe(await readBody(req), res);
-    if (req.method === 'POST' && req.url.startsWith('/api/coach')) return handleCoach(await readBody(req), res);
+    // AI rute: await je obavezan — bez njega greška AI-ja nije uhvaćena i obara cijeli server.
+    if (req.method === 'POST' && req.url.startsWith('/api/estimate')) { track('estimate'); return await aiRoute('estimate', handleEstimate, req, res, MAX_IMAGE_B64 + 64 * 1024); }
+    if (req.method === 'POST' && req.url.startsWith('/api/plan')) return await aiRoute('plan', handlePlan, req, res);
+    if (req.method === 'POST' && req.url.startsWith('/api/recipe')) return await aiRoute('recipe', handleRecipe, req, res);
+    if (req.method === 'POST' && req.url.startsWith('/api/coach')) return await aiRoute('coach', handleCoach, req, res);
     if (req.method === 'GET' && ['/privatnost','/privacy','/politika-privatnosti'].includes(req.url.split('?')[0])) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control':'no-cache' });
       return res.end(PRIVACY_HTML);
@@ -769,9 +887,17 @@ http.createServer(async (req, res) => {
     json(res, 404, { error: 'Not found' });
   } catch (e) {
     console.error('server error:', e?.message || e);
-    json(res, 500, { error: e?.message || 'Greška na serveru.' });
+    if (res.headersSent) return res.end();
+    if (e?.status === 413) return json(res, 413, { error: 'Zahtjev je prevelik.' });
+    json(res, 500, { error: 'Greška na serveru.' }); // bez internih detalja prema korisniku
   }
 }).listen(PORT, () => {
+  if (!PADDLE_WEBHOOK_SECRET) console.warn('⚠️  PADDLE_WEBHOOK_SECRET nije postavljen — Paddle webhook je zatvoren i kupovine NEĆE aktivirati Pro.');
+  if (!SUPABASE_SERVICE_KEY) console.warn('⚠️  SUPABASE_SERVICE_KEY nije postavljen — Pro status se ne može upisati.');
   console.log(`\n🥑 NutriPilot radi na  http://localhost:${PORT}`);
   console.log(`   Model: ${MODEL}  ·  API ključ: ${API_KEY ? 'postavljen ✓' : 'NEDOSTAJE ✗'}\n`);
 });
+
+// Posljednja linija odbrane: neuhvaćena greška se loguje, ali ne obara server za sve korisnike.
+process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e?.message || e));
+process.on('uncaughtException', (e) => console.error('uncaughtException:', e?.message || e));

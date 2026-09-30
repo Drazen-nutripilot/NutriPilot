@@ -72,6 +72,20 @@ Ako samo hoćeš da probaš odmah dok si za računarom:
 
 ---
 
+## Obavezne tajne za naplatu (bez njih se Pro NE aktivira)
+Webhookovi za plaćanje su sada **zatvoreni** dok nije postavljen tajni ključ (ranije je bez ključa svako mogao sebi upisati Pro).
+- `PADDLE_WEBHOOK_SECRET` — iz Paddle → Developer tools → Notifications → tvoja destinacija → *Secret key*
+- `SUPABASE_SERVICE_KEY` — Supabase → Project Settings → API → `service_role` ključ
+- `LS_WEBHOOK_SECRET` — samo ako koristiš Lemon Squeezy
+
+Ako neki nedostaje, u logovima servera pri pokretanju piše upozorenje `⚠️ ... nije postavljen`.
+
+## Zaštita AI troška (opciono podešavanje)
+AI rute imaju ograničenja po IP adresi na dan, da niko ne može da troši Anthropic račun. Podrazumijevano:
+`LIMIT_ESTIMATE=60`, `LIMIT_PLAN=25`, `LIMIT_RECIPE=40`, `LIMIT_COACH=40`, `LIMIT_PER_MINUTE=10`,
+i ukupni dnevni plafon za sve korisnike `AI_DAILY_CAP=5000`. Svaki broj se može promijeniti env varijablom.
+Dodatni dozvoljeni domeni za pozive iz pregledača: `EXTRA_ORIGINS=https://nesto.com,https://drugo.com`.
+
 ## Provjera da radi
 - Otvori `TVOJ_LINK/api/health` → treba da vrati `{"ok":true,"model":"...","keySet":true}`.
 - Ako je `keySet:false` → nisi dobro unio `ANTHROPIC_API_KEY` (provjeri env varijable pa restartuj servis).

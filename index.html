@@ -303,6 +303,22 @@ body.dark .lvlcard{background:linear-gradient(135deg,#2a2412,var(--card))}
 .slotchips{display:flex;gap:8px;margin:12px 0}
 .slotchips button{flex:1;background:var(--card2);border:2px solid transparent;border-radius:12px;padding:10px 4px;font-size:12.5px;font-weight:700;color:var(--muted)}
 .slotchips button.on{background:var(--soft);border-color:var(--green);color:var(--green2)}
+/* pregled AI procjene */
+.rv-img{width:100%;height:150px;object-fit:cover;border-radius:18px;margin:8px 0 4px;display:block}
+.rv-note{background:#fff4e2;color:#8a5a00;border-radius:14px;padding:10px 12px;font-size:13px;line-height:1.4;margin:8px 0 2px}
+body.dark .rv-note{background:#2d2310;color:#f3c26b}
+.rv-item{background:var(--card2);border-radius:18px;padding:12px 14px;margin:10px 0}
+.rv-top{display:flex;align-items:center;gap:10px}
+.rv-top .e{font-size:22px;flex:none}
+.rv-top b{flex:1;font-size:15px;line-height:1.25}
+.rv-top .x{width:36px;height:36px;border-radius:50%;background:var(--card);color:var(--muted);font-size:14px;flex:none}
+.rv-sl{display:flex;align-items:center;gap:12px;margin:8px 0 2px}
+.rv-sl input{flex:1;accent-color:var(--green2);height:30px;margin:0}
+.rv-sl span{min-width:64px;text-align:right;font-weight:800;font-size:14px}
+.rv-mac{font-size:12.5px;color:var(--muted)}
+.rv-tot{display:flex;justify-content:space-between;align-items:baseline;margin:12px 2px 8px}
+.rv-tot b{font-size:26px}
+.cta:disabled{opacity:.45}
 .catrow{display:flex;gap:14px;margin:14px 0 8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .catrow::-webkit-scrollbar{display:none}
 .catrow button{background:none;font-size:13.5px;font-weight:700;color:var(--muted);padding:6px 2px;border-bottom:2px solid transparent;white-space:nowrap;flex:none}
@@ -650,6 +666,8 @@ function rolloverIfNewDay(){
 const $ = id => document.getElementById(id);
 const fmt = n => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');
 const SLOTS=['Doručak','Užina','Ručak','Večera'];
+// "Dodaj u …" traži akuzativ: užina → užinu, večera → večeru
+const slotAcc=s=>({'Užina':'užinu','Večera':'večeru'}[s]||String(s).toLowerCase());
 const SLOT_PCT={'Doručak':0.25,'Užina':0.15,'Ručak':0.35,'Večera':0.25};
 
 function calcPlan(){
@@ -1043,7 +1061,7 @@ function renderMeals(){
       <div><div class="nm">${mealLabel(x.m)}</div><div class="sm">B ${s.p} · UH ${s.c} · M ${s.f} g</div></div>
       <div class="kc"><b>${s.kc}</b><span>kcal</span></div>
       <button class="del" onclick="event.stopPropagation();delMeal(${x.i})">✕</button></div>`;}).join('');
-    if(!items.length) html+=`<button class="slotadd" onclick="openAdd('${slot}')">+ Dodaj u ${slot.toLowerCase()}</button>`;
+    if(!items.length) html+=`<button class="slotadd" onclick="openAdd('${slot}')">+ Dodaj u ${slotAcc(slot)}</button>`;
     html+=`</div>`;
   });
   ml.innerHTML=html;
@@ -1459,6 +1477,67 @@ function limitNotice(err){
 function startTrialSignup(){ closeSheet(); requireAuth(()=>{ checkProStatus().then(()=>{ renderAll(); if(trialActive()) toast('Proba aktivna: 3 dana Pro ✨'); }); }); }
 function addApiItems(data){ (data.items||[]).forEach(it=>addMeal({
   name:it.name+(it.quantity?` (${it.quantity})`:''), e:it.emoji||'🍽️', kc:it.kcal,p:it.protein_g,c:it.carbs_g,f:it.fat_g })); }
+
+/* ===== pregled AI procjene prije dodavanja: korisnik podesi količine i obriše pogrešne stavke =====
+   Ako AI navede grame/ml ("2 komada (~120 g)"), klizač radi u gramima i obrok se čuva po 100 g
+   (kasnije uređivanje u gramima); inače u porcijama (×0,25 – ×4). */
+let _rv=null;
+function _rvParse(it){
+  const q=String(it.quantity||''), all=[...q.matchAll(/(\d+(?:[.,]\d+)?)\s*(g|gr|grama|ml)\b/gi)], m=all[all.length-1];
+  const g=m?parseFloat(m[1].replace(',','.')):0, unit=m&&/ml/i.test(m[2])?'ml':'g';
+  const v={kc:+it.kcal||0,p:+it.protein_g||0,c:+it.carbs_g||0,f:+it.fat_g||0};
+  if(g>=5&&g<=3000) return {name:it.name,e:it.emoji||'🍽️',q,unit,g0:g,val:g,step:g<60?5:10,max:Math.max(g*3,g+200),
+    base:{kc:v.kc*100/g,p:v.p*100/g,c:v.c*100/g,f:v.f*100/g},per100:true,on:true};
+  return {name:it.name,e:it.emoji||'🍽️',q,unit:'porcija',g0:1,val:1,step:0.25,max:4,base:v,per100:false,on:true};
+}
+function _rvCalc(r){ const k=r.per100?r.val/100:r.val; return {kc:Math.round(r.base.kc*k),p:Math.round(r.base.p*k),c:Math.round(r.base.c*k),f:Math.round(r.base.f*k)}; }
+function _rvLabel(r){ return r.per100?`${Math.round(r.val)} ${r.unit}`:`×${String(r.val).replace('.',',')}`; }
+function openReview(data,photo){
+  _rv={items:(data.items||[]).map(_rvParse),conf:data.confidence||'medium',photo:!!photo};
+  const unsure=_rv.conf!=='high';
+  sheet(`<h3>Provjeri obrok</h3>
+    ${photo?`<img class="rv-img" src="${photo}" alt="">`:''}
+    ${unsure?`<div class="rv-note">🤔 AI nije potpuno siguran — provjeri količine prije dodavanja.</div>`:`<p class="hint" style="margin:4px 0 0">Podesi količine ako treba, pa dodaj.</p>`}
+    <div id="rvList"></div>
+    <div class="slotchips" id="rvSlots" style="margin-top:6px">${SLOTS.map(s=>`<button class="${S.addSlot===s?'on':''}" onclick="rvSlot('${s}')">${s}</button>`).join('')}</div>
+    <div class="rv-tot"><span class="lb">Ukupno</span><div><b id="rvKc">0</b> <span style="color:var(--muted);font-weight:700">kcal</span></div></div>
+    <p id="rvMac" class="rv-mac" style="text-align:right;margin:-6px 2px 12px"></p>
+    <button id="rvAdd" class="cta" onclick="rvConfirm()"></button>
+    <button class="cta" style="background:var(--soft);color:var(--ink);margin-top:10px" onclick="closeSheet()">Odustani</button>`);
+  rvRender();
+}
+function rvRender(){
+  const L=$('rvList'); if(!L||!_rv) return;
+  L.innerHTML=_rv.items.map((r,i)=>{ if(!r.on) return ''; const s=_rvCalc(r);
+    return `<div class="rv-item">
+      <div class="rv-top"><span class="e">${esc(r.e)}</span><b>${esc(r.name)}</b>
+        <button class="x" aria-label="Ukloni ${esc(r.name)}" onclick="rvRemove(${i})">✕</button></div>
+      <div class="rv-sl"><input type="range" min="${r.step}" max="${r.max}" step="${r.step}" value="${r.val}" aria-label="Količina" oninput="rvSet(${i},this.value)"><span id="rvV${i}">${_rvLabel(r)}</span></div>
+      <div class="rv-mac" id="rvM${i}"><b style="color:var(--ink)">${s.kc} kcal</b> · B ${s.p} · UH ${s.c} · M ${s.f} g</div></div>`; }).join('')
+    || `<p class="hint" style="text-align:center;padding:14px 0">Sve stavke su uklonjene.</p>`;
+  rvTotals();
+}
+function rvTotals(){
+  const t={kc:0,p:0,c:0,f:0}, on=_rv.items.filter(r=>r.on);
+  on.forEach(r=>{const s=_rvCalc(r);t.kc+=s.kc;t.p+=s.p;t.c+=s.c;t.f+=s.f;});
+  $('rvKc').textContent=fmt(t.kc); $('rvMac').textContent=`B ${t.p} · UH ${t.c} · M ${t.f} g`;
+  const b=$('rvAdd'); b.disabled=!on.length; b.textContent=on.length?`Dodaj u ${slotAcc(S.addSlot)} · ${fmt(t.kc)} kcal`:'Nema stavki za dodavanje';
+}
+function rvSet(i,v){ const r=_rv.items[i]; r.val=+v; const s=_rvCalc(r);
+  $('rvV'+i).textContent=_rvLabel(r); $('rvM'+i).innerHTML=`<b style="color:var(--ink)">${s.kc} kcal</b> · B ${s.p} · UH ${s.c} · M ${s.f} g`; rvTotals(); }
+function rvRemove(i){ _rv.items[i].on=false; rvRender(); }
+function rvSlot(s){ S.addSlot=s; document.querySelectorAll('#rvSlots button').forEach(b=>b.classList.toggle('on',b.textContent===s)); rvTotals(); }
+function rvConfirm(){
+  const on=_rv.items.filter(r=>r.on); if(!on.length) return;
+  let kc=0;
+  on.forEach(r=>{ kc+=_rvCalc(r).kc;
+    pushMeal(r.per100
+      ? {baseName:r.name,e:r.e,base:r.base,per100:true,unit:r.unit,qty:Math.round(r.val),slot:S.addSlot}
+      : {baseName:r.name+(r.q?` (${r.q})`:''),e:r.e,base:r.base,per100:false,unit:'porcija',qty:r.val,slot:S.addSlot}); });
+  const photo=_rv.photo; _rv=null; closeSheet();
+  toast(`Dodato u ${slotAcc(S.addSlot)}: ${fmt(kc)} kcal ✓`);
+  if(photo) unlockBadge('photo');
+}
 /* baza namirnica sa količinama (per = po 1 kom/čaši, ili po 100g za unit='g') */
 const FOODS={
   /* OSNOVNO */
@@ -1957,10 +2036,9 @@ async function aiAdd(){
   if(!aiAllowed()){ limitNotice({code:'free_limit',message:loggedIn()?'Iskoristio si besplatnu AI procjenu za danas. Otključaj neograničeno uz Ajmo Pro.':'Iskoristio si besplatnu AI procjenu za danas. Napravi nalog i dobij 3 dana Pro besplatno.'}); return; }
   $('aiOut').innerHTML='⏳ AI procjenjuje…';
   try{ const data=await apiEstimate({text:v});
-    if(!data.items||!data.items.length){$('aiOut').innerHTML='🤔 '+(data.note||'Nisam prepoznao. Probaj drugačije.');return;}
+    if(!data.items||!data.items.length){$('aiOut').innerHTML='🤔 '+esc(data.note||'Nisam prepoznao. Probaj drugačije.');return;}
     aiConsume();
-    $('aiOut').innerHTML=`✅ <b>${data.total.kcal} kcal</b> · B ${data.total.protein_g} · UH ${data.total.carbs_g} · M ${data.total.fat_g} g`;
-    setTimeout(()=>{addApiItems(data);closeSheet();},500);
+    openReview(data,null);
   }catch(err){
     if(limitNotice(err)){ S.aiDay=todayStr(); S.aiCount=FREE_AI_PER_DAY; save(); return; }
     // Lokalna procjena samo bez interneta — kad AI vrati grešku, ne upisujemo "pogođeni" obrok.
@@ -1976,10 +2054,9 @@ async function handlePhoto(ev){
   const url=await shrinkImage(f);
   $('aiOut').innerHTML='⏳ AI prepoznaje obrok sa slike…';
   try{ const data=await apiEstimate({imageBase64:url.split(',')[1],mediaType:(url.match(/data:(.*?);/)||[])[1]||'image/jpeg'});
-    if(!data.items||!data.items.length){$('aiOut').innerHTML='🤔 '+(data.note||'Nisam prepoznao hranu na slici.');return;}
+    if(!data.items||!data.items.length){$('aiOut').innerHTML='🤔 '+esc(data.note||'Nisam prepoznao hranu na slici.');return;}
     aiConsume();
-    $('aiOut').innerHTML=`✅ Prepoznato: ${data.items.map(i=>i.emoji+' '+i.name).join(', ')}<br><b>${data.total.kcal} kcal</b> ukupno`;
-    setTimeout(()=>{addApiItems(data);closeSheet();unlockBadge('photo');},900);
+    openReview(data,url);
   }catch(err){ if(limitNotice(err)){ S.aiDay=todayStr(); S.aiCount=FREE_AI_PER_DAY; save(); return; } $('aiOut').innerHTML=`⚠️ ${esc(friendlyErr(err))}`; }
 }
 // Smanji fotografiju na ~1280 px (JPEG) prije slanja: brže, jeftinije i ispod limita servera.

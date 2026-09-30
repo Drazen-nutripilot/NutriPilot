@@ -1,0 +1,14 @@
+{
+  "appId": "ajmo.fit.app",
+  "appName": "Ajmo",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "never"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

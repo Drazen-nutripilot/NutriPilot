@@ -92,6 +92,23 @@ Dodatni dozvoljeni domeni za pozive iz pregledača: `EXTRA_ORIGINS=https://nesto
 - Podesivo env varijablama: `TRIAL_DAYS=3`, `FREE_ESTIMATE_PER_DAY=1`, `FREE_COACH_PER_DAY=3`, `FREE_ANON_PER_IP=4`.
 - Provjera: `TVOJ_LINK/api/me` bez prijave vraća `{"plan":"anon",...}`.
 
+## Native aplikacija (Capacitor: iOS + Android)
+Web (ajmo.fit) i dalje radi kao do sada — `server.js` nema npm zavisnosti; Capacitor paketi služe samo za pravljenje aplikacije.
+- `index.html` je jedina stranica aplikacije. Poslije svake izmjene: `npm run cap:sync` (kopira je u `android/` i `ios/`).
+- **Važno:** aplikacija nosi svoju kopiju `index.html`, pa izmjene na ajmo.fit stižu u aplikaciju tek sa novim buildom u prodavnici. AI, nalog i Pro idu preko `https://ajmo.fit` (server se mijenja bez novog builda).
+- ID aplikacije: `ajmo.fit.app` (isti na iOS i Android). Nakon prvog slanja u prodavnice više se ne može mijenjati.
+
+**Android (Windows):**
+1. Otvori Android Studio jednom i prođi „Standard“ podešavanje (instalira Android SDK).
+2. U folderu projekta: `npm install` (samo prvi put), pa `npm run cap:android` → otvara se Android Studio.
+3. Sačekaj „Gradle sync“, uključi telefon sa USB debugging-om (ili emulator) i klikni ▶ Run.
+
+**iOS (treba Mac sa Xcode-om):**
+1. Na Mac-u: `npm install`, pa `npm run cap:ios` → otvara se Xcode.
+2. App → Signing & Capabilities → izaberi Team (Apple Developer nalog) → ▶ Run na iPhone-u.
+
+Ikonice i splash se prave iz `assets/logo.png`: `npx @capacitor/assets generate --android --ios --iconBackgroundColor '#FF5A3C' --splashBackgroundColor '#FF5A3C'`.
+
 ## Provjera da radi
 - Otvori `TVOJ_LINK/api/health` → treba da vrati `{"ok":true,"model":"...","keySet":true}`.
 - Ako je `keySet:false` → nisi dobro unio `ANTHROPIC_API_KEY` (provjeri env varijable pa restartuj servis).

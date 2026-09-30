@@ -447,6 +447,8 @@ function serveStatic(req, res) {
   let rel = decodeURIComponent(req.url.split('?')[0]);
   if (rel === '/') rel = '/index.html';
   const safe = path.normalize(rel).replace(/^(\.\.[/\\])+/, '');
+  // samo fajlovi iz korijena — ne serviramo android/, ios/, www/, node_modules/ …
+  if (/[/\\]/.test(safe.replace(/^[/\\]+/, ''))) { res.writeHead(404); return res.end('Not found'); }
   const file = path.join(PUBLIC, safe);
   const base = path.basename(file).toLowerCase();
   const ext = path.extname(file).toLowerCase();

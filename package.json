@@ -1,14 +1,24 @@
 {
   "name": "nutripilot",
   "version": "0.1.0",
-  "description": "NutriPilot — AI trener za ishranu (MVP sa pravom AI procjenom kalorija). Bez npm zavisnosti.",
+  "description": "Ajmo (ajmo.fit) — AI trener za ishranu i trening. Server bez npm zavisnosti; Capacitor alati samo za native build.",
   "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "build:www": "node scripts/build-www.mjs",
+    "cap:sync": "node scripts/build-www.mjs && npx cap sync",
+    "cap:android": "npm run cap:sync && npx cap open android",
+    "cap:ios": "npm run cap:sync && npx cap open ios"
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2"
   }
 }

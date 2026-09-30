@@ -545,7 +545,7 @@ function track(e){ try{ var u=API+'/api/ev', body=JSON.stringify({e:e});
 }catch(_){}}
 /* ================= STATE ================= */
 const S = {
-  onboarded:false, pro:false, theme:'light', notif:true,
+  onboarded:false, pro:false, trialStart:null, aiDay:'', aiCount:0, theme:'light', notif:true,
   name:'', goal:'lose', sex:'f', age:30, h:170, w:72, tw:66, act:1.375,
   target:{kcal:0,p:0,c:0,f:0}, eaten:{kcal:0,p:0,c:0,f:0},
   meals:[], water:5, streak:12,
@@ -861,8 +861,16 @@ function requireAuth(cb){ _authCb=cb; openAuth(); }
 function finishOnboard(){
   _completeOnboard();   // besplatna verzija — BEZ naloga; prijava kasnije (profil) za sinhronizaciju/Pro
 }
+/* ===== PROBA (3 dana pune probe) + limit besplatnog AI ===== */
+var TRIAL_DAYS=3, TRIAL_MS=TRIAL_DAYS*24*60*60*1000, FREE_AI_PER_DAY=1;
+function trialActive(){ return !!S.trialStart && (Date.now()-S.trialStart) < TRIAL_MS; }
+function trialDaysLeft(){ if(!S.trialStart) return TRIAL_DAYS; return Math.max(0, Math.ceil((TRIAL_MS-(Date.now()-S.trialStart))/86400000)); }
+function proAccess(){ return !!S.pro || trialActive(); }   // pun pristup: pravi Pro ILI aktivna proba
+function aiAllowed(){ if(proAccess()) return true; var t=todayStr(); if(S.aiDay!==t){ S.aiDay=t; S.aiCount=0; } return (S.aiCount||0) < FREE_AI_PER_DAY; }
+function aiConsume(){ if(proAccess()) return; var t=todayStr(); if(S.aiDay!==t){ S.aiDay=t; S.aiCount=0; } S.aiCount=(S.aiCount||0)+1; save(); }
 function _completeOnboard(){
   if(!S.onboarded) track('app_enter');
+  if(!S.trialStart) S.trialStart=Date.now();   // proba kreće od prvog ulaska
   S.onboarded=true; S.lastDate=todayStr();
   resetForNewUser();
   revealApp(); renderAll(); save();
@@ -894,8 +902,8 @@ function startApp(){
   load(); // učitaj lokalne postavke (tema itd.)
   try{ initPaddle(); }catch(e){}
   if(checkRecovery()) return;   // ako je korisnik stigao preko linka za promjenu lozinke
-  if(loggedIn() && S.onboarded){ revealApp(); renderAll(); }
-  else { renderStep(); }  // bez naloga (ili neonboardovan) -> onboarding / prijava, NE ulazi u app
+  if(S.onboarded){ if(!S.trialStart && !S.pro) S.trialStart=Date.now(); revealApp(); renderAll(); }
+  else { renderStep(); }  // ko je prošao onboarding ulazi u app (sa ili bez naloga); ostali -> onboarding
   // ako postoji sesija -> osvježi token i povuci podatke iz oblaka (best-effort)
   if(loggedIn()){ sbRefresh().then(()=>cloudPull().then(()=>{ if(S.onboarded){ revealApp(); renderAll(); } checkProStatus(); })); }
 }
@@ -1070,7 +1078,7 @@ function renderProgress(){
       </div>
     </div>`;
 
-  $('proWall').innerHTML = S.pro
+  $('proWall').innerHTML = proAccess()
     ? `<div class="stat"><div class="lb">Prosjek proteina (7 dana)</div><b>${Math.round(S.target.p*0.9)} g</b></div>
        <div class="stat"><div class="lb">Projekcija do cilja (${S.tw} kg)</div><b>~7 nedjelja</b></div>`
     : `<div class="lockcard"><div class="em">🔒</div><p>Dublja analiza (prosjek makroa, trend, projekcija do cilja) je <b>Pro</b> funkcija.</p>
@@ -1083,7 +1091,17 @@ function renderProfile(){
   const got=S.badges.filter(b=>b.got).length;
   $('pBadges').innerHTML=`${got}/${S.badges.length} <span>›</span>`;
   $('themeSw').classList.toggle('on',S.theme==='dark');
-  if(S.pro) $('proBanner').style.display='none';
+  var _pb=$('proBanner');
+  if(_pb){
+    if(S.pro){ _pb.style.display='none'; }
+    else {
+      _pb.style.display='';
+      var _tt=_pb.querySelector('.tt');
+      if(_tt){ _tt.innerHTML = trialActive()
+        ? '<b>Proba: ostalo '+trialDaysLeft()+' '+(trialDaysLeft()===1?'dan':'dana')+'</b><span>Otključano sve — nadogradi da zadržiš</span>'
+        : '<b>Ajmo Pro</b><span>Otključaj planove, recepte i neograničeni AI</span>'; }
+    }
+  }
   const _li=loggedIn();
   if($('acctLb')) $('acctLb').textContent=_li?((_sess()||{}).email||'Nalog'):'Prijava / Registracija';
   if($('acctRt')) $('acctRt').innerHTML=(_li?'Sinhronizovano ✓':'Sinhronizuj')+' <span>›</span>';
@@ -1207,7 +1225,7 @@ const RECIPES=[{"id":"dorucak-omlet-sir","name":"Omlet sa sirom i povrćem","e":
 /* ================= KNJIGA RECEPATA ================= */
 const BOOK_CATS=['Sve','Domaća','Zdravo','Posno','Meal-prep','Slatko'];
 let _bookCat='Sve';
-function recipeUnlocked(r){ return !!r.free || !!S.pro; }
+function recipeUnlocked(r){ return !!r.free || proAccess(); }
 function openBook(){ _bookCat='Sve'; let el=document.getElementById('book'); if(!el){ el=document.createElement('div'); el.id='book'; el.className='book'; document.body.appendChild(el); } renderBook(); el.scrollTop=0; }
 function closeBook(){ const el=document.getElementById('book'); if(el) el.remove(); }
 function setBookCat(c){ _bookCat=c; renderBook(); const b=document.getElementById('book'); if(b) b.scrollTop=0; }
@@ -1794,9 +1812,12 @@ function toggleFav(k){ if(S.favs.includes(k))S.favs=S.favs.filter(x=>x!==k); els
 function updateFavBtn(){ const b=$('favBtn'); if(!b)return; const on=S.favs.includes(qKey);
   b.textContent=on?'★ Omiljeno':'☆ Omiljeno'; b.style.color=on?'#f6a723':'var(--muted)'; }
 async function aiAdd(){
-  const v=$('aiIn').value.trim(); if(!v)return; $('aiOut').innerHTML='⏳ AI procjenjuje…';
+  const v=$('aiIn').value.trim(); if(!v)return;
+  if(!aiAllowed()){ $('aiOut').innerHTML='🔒 Besplatna AI procjena je iskorišćena za danas. Otključaj neograničeno uz Pro.'; openPaywall(); return; }
+  $('aiOut').innerHTML='⏳ AI procjenjuje…';
   try{ const data=await apiEstimate({text:v});
     if(!data.items||!data.items.length){$('aiOut').innerHTML='🤔 '+(data.note||'Nisam prepoznao. Probaj drugačije.');return;}
+    aiConsume();
     $('aiOut').innerHTML=`✅ <b>${data.total.kcal} kcal</b> · B ${data.total.protein_g} · UH ${data.total.carbs_g} · M ${data.total.fat_g} g`;
     setTimeout(()=>{addApiItems(data);closeSheet();},500);
   }catch(err){ const g=localGuess(v);
@@ -1805,11 +1826,14 @@ async function aiAdd(){
   }
 }
 async function handlePhoto(ev){
-  const f=ev.target.files&&ev.target.files[0]; if(!f)return; $('aiOut').innerHTML='📸 Učitavam sliku…';
+  const f=ev.target.files&&ev.target.files[0]; if(!f)return;
+  if(!aiAllowed()){ $('aiOut').innerHTML='🔒 Besplatno slikanje je iskorišćeno za danas. Otključaj neograničeno uz Pro.'; openPaywall(); return; }
+  $('aiOut').innerHTML='📸 Učitavam sliku…';
   const url=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(f);});
   $('aiOut').innerHTML='⏳ AI prepoznaje obrok sa slike…';
   try{ const data=await apiEstimate({imageBase64:url.split(',')[1],mediaType:(url.match(/data:(.*?);/)||[])[1]||'image/jpeg'});
     if(!data.items||!data.items.length){$('aiOut').innerHTML='🤔 '+(data.note||'Nisam prepoznao hranu na slici.');return;}
+    aiConsume();
     $('aiOut').innerHTML=`✅ Prepoznato: ${data.items.map(i=>i.emoji+' '+i.name).join(', ')}<br><b>${data.total.kcal} kcal</b> ukupno`;
     setTimeout(()=>{addApiItems(data);closeSheet();unlockBadge('photo');},900);
   }catch(err){ $('aiOut').innerHTML=`⚠️ Prepoznavanje sa slike traži pokrenut server (${err.message}).`; }
@@ -1817,6 +1841,7 @@ async function handlePhoto(ev){
 
 /* ================= AI: plan obroka ================= */
 async function makePlan(){
+  if(!proAccess()){ openPaywall(); return; }   // plan ishrane je Pro poslije probe
   $('planTitle').textContent = S.posno ? 'Posni plan ishrane 🌱' : ('AI plan ishrane · '+GOALS[S.goal].t.toLowerCase());
   $('planSub').textContent='AI pravi tvoj plan…';
   $('planList').innerHTML='<div class="planhead"><div class="spinner"></div></div>';
@@ -2109,7 +2134,7 @@ function currentTrain(){ return genWeek(S.goal, S.trainWeek, S.sex); }
 function setTrainWeek(w){ S.trainWeek=Math.max(0,w); S.trainDone={}; renderTraining(); renderProgress(); }
 function renderTraining(){
   const el=$('planTrain');
-  if(!S.pro){
+  if(!proAccess()){
     el.innerHTML=`<div class="lockcard"><div class="em">🔒</div>
       <p><b>Plan treninga</b> je Pro funkcija — sedmični program prilagođen tvom cilju
       (${GOALS[S.goal].t.toLowerCase()}), <b>drugačiji svake sedmice</b>.</p>

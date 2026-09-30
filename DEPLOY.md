@@ -86,6 +86,12 @@ AI rute imaju ograničenja po IP adresi na dan, da niko ne može da troši Anthr
 i ukupni dnevni plafon za sve korisnike `AI_DAILY_CAP=5000`. Svaki broj se može promijeniti env varijablom.
 Dodatni dozvoljeni domeni za pozive iz pregledača: `EXTRA_ORIGINS=https://nesto.com,https://drugo.com`.
 
+## Pro, proba i besplatni limit (provjerava server)
+- **Pro** = aktivan red u `pro_users` · **proba** = prvih 3 dana od pravljenja naloga · **besplatno** = 1 AI procjena + 3 pitanja treneru dnevno; AI plan ishrane i recepti su Pro.
+- Jednom pokreni **`supabase_setup.sql`** u Supabase → SQL Editor. On pravi brojač besplatnih poziva koji preživljava restart servera. Bez njega brojač radi u memoriji (resetuje se kad Render uspava server) i u logu piše upozorenje.
+- Podesivo env varijablama: `TRIAL_DAYS=3`, `FREE_ESTIMATE_PER_DAY=1`, `FREE_COACH_PER_DAY=3`, `FREE_ANON_PER_IP=4`.
+- Provjera: `TVOJ_LINK/api/me` bez prijave vraća `{"plan":"anon",...}`.
+
 ## Provjera da radi
 - Otvori `TVOJ_LINK/api/health` → treba da vrati `{"ok":true,"model":"...","keySet":true}`.
 - Ako je `keySet:false` → nisi dobro unio `ANTHROPIC_API_KEY` (provjeri env varijable pa restartuj servis).

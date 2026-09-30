@@ -527,15 +527,128 @@ function aiAllowed(route, ip) {
   win.push(now); _rl.set(m, win); _rl.set(k, cnt + 1); _aiToday++;
   return 'ok';
 }
+/* ---------- nalog, Pro i besplatni limit (provjerava server, ne pregledač) ----------
+   pro   = aktivna pretplata u pro_users
+   trial = nalog mlađi od TRIAL_DAYS (proba počinje pravljenjem naloga, ne može se ponoviti)
+   free  = nalog poslije probe · anon = bez naloga
+   pro/trial: sve otključano (uz IP zaštitu troška). free/anon: FREE_* poziva dnevno, plan i recept su Pro. */
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_GaPGRRjYHoM8Mt8DvwW4YQ_-sEUZdOc'; // javni ključ (isti je u index.html)
+const TRIAL_DAYS = +process.env.TRIAL_DAYS || 3;
+const FREE_LIMITS = { estimate: +process.env.FREE_ESTIMATE_PER_DAY || 1, coach: +process.env.FREE_COACH_PER_DAY || 3 };
+const FREE_ANON_PER_IP = +process.env.FREE_ANON_PER_IP || 4; // više uređaja iza iste IP adrese (porodica, mobilna mreža)
+const PRO_ONLY = new Set(['plan', 'recipe']);
+const localDay = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Podgorica' }); // YYYY-MM-DD po našem vremenu
+
+const _authCache = new Map();
+// null = bez tokena · 'invalid' = token istekao/neispravan · objekat = korisnik
+async function authUser(req) {
+  const m = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
+  if (!m) return null;
+  const tok = m[1].trim();
+  if (tok.length < 20 || tok.length > 8192) return 'invalid';
+  const key = crypto.createHash('sha256').update(tok).digest('hex');
+  const c = _authCache.get(key);
+  if (c && c.exp > Date.now()) return c.user;
+  try {
+    const r = await fetch(SUPABASE_URL + '/auth/v1/user', { headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + tok }, signal: AbortSignal.timeout(8000) });
+    if (r.status === 401 || r.status === 403) { _authCache.set(key, { user: 'invalid', exp: Date.now() + 60000 }); return 'invalid'; }
+    if (!r.ok) return null; // Supabase nedostupan → tretiraj kao gosta, ne blokiraj
+    const u = await r.json();
+    const user = { id: String(u.id || ''), email: String(u.email || '').toLowerCase(), created: Date.parse(u.created_at) || Date.now() };
+    if (!user.id) return 'invalid';
+    if (_authCache.size > 5000) _authCache.clear();
+    _authCache.set(key, { user, exp: Date.now() + 5 * 60000 });
+    return user;
+  } catch { return null; }
+}
+const _proCache = new Map();
+async function isPro(email) {
+  if (!email || !SUPABASE_SERVICE_KEY) return false;
+  const c = _proCache.get(email);
+  if (c && c.exp > Date.now()) return c.v;
+  try {
+    const r = await sbAdmin('pro_users?select=active,expires_at&email=eq.' + encodeURIComponent(email), 'GET');
+    if (!r.ok) return c ? c.v : false;
+    const row = (await r.json())[0];
+    let v = !!(row && row.active === true);
+    if (v && row.expires_at) v = Date.parse(row.expires_at) > Date.now(); // istekla poklon-pretplata
+    _proCache.set(email, { v, exp: Date.now() + 2 * 60000 });
+    return v;
+  } catch { return c ? c.v : false; }
+}
+async function entitlement(req) {
+  const user = await authUser(req);
+  if (user === 'invalid') return { invalid: true };
+  if (!user) return { plan: 'anon' };
+  const trialEnd = user.created + TRIAL_DAYS * 86400000;
+  if (await isPro(user.email)) return { plan: 'pro', user, trialEnd };
+  return { plan: Date.now() < trialEnd ? 'trial' : 'free', user, trialEnd };
+}
+// Brojač besplatnih poziva: Supabase tabela ai_usage (preživi restart servera), rezerva u memoriji.
+let _usageDb = null; const _usageMem = new Map(); let _usageMemDay = '';
+async function usageRpc(fn, args) {
+  if (!SUPABASE_SERVICE_KEY || _usageDb === false) return undefined;
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, { method: 'POST',
+      headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: 'Bearer ' + SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args), signal: AbortSignal.timeout(6000) });
+    if (r.ok) { _usageDb = true; return await r.json(); }
+    if (r.status === 404) { _usageDb = false; console.warn('⚠️  Funkcija ' + fn + ' ne postoji u Supabase-u — besplatni limit se broji u memoriji (pokreni supabase_setup.sql).'); }
+  } catch {}
+  return undefined;
+}
+async function usageHit(subject, kind, limit) { // true = dozvoljeno i uračunato
+  const day = localDay();
+  const v = await usageRpc('ai_usage_hit', { p_subject: subject, p_day: day, p_kind: kind, p_limit: limit });
+  if (v !== undefined) return v !== null;
+  if (day !== _usageMemDay) { _usageMemDay = day; _usageMem.clear(); }
+  const k = subject + '|' + kind, n = _usageMem.get(k) || 0;
+  if (n >= limit) return false;
+  _usageMem.set(k, n + 1); return true;
+}
+async function usageRefund(subject, kind) { // AI nije uspio → ne troši korisniku besplatni poziv
+  const v = await usageRpc('ai_usage_refund', { p_subject: subject, p_day: localDay(), p_kind: kind });
+  if (v !== undefined) return;
+  const k = subject + '|' + kind, n = _usageMem.get(k) || 0;
+  if (n > 0) _usageMem.set(k, n - 1);
+}
+function deviceSubject(req, ip) {
+  const d = String(req.headers['x-device-id'] || '');
+  return /^[A-Za-z0-9-]{16,64}$/.test(d) ? 'd:' + d : 'ip:' + ip;
+}
+
 async function aiRoute(route, handler, req, res, bodyLimit) {
-  const verdict = aiAllowed(route, clientIp(req));
+  const ip = clientIp(req);
+  const verdict = aiAllowed(route, ip);
   if (verdict !== 'ok') {
     if (verdict === 'cap') console.error(`AI_DAILY_CAP (${AI_DAILY_CAP}) dostignut — AI pozivi pauzirani do ponoći UTC`);
     return json(res, 429, { error: verdict === 'minute' ? 'Previše zahtjeva zaredom — sačekaj minut pa probaj ponovo.' : 'Dostignut je dnevni limit AI zahtjeva. Probaj ponovo sjutra.' });
   }
+  const ent = await entitlement(req);
+  if (ent.invalid) return json(res, 401, { error: 'Sesija je istekla — prijavi se ponovo.', code: 'auth_expired' });
+  const charged = [];
+  if (ent.plan !== 'pro' && ent.plan !== 'trial') {
+    if (PRO_ONLY.has(route)) return json(res, 402, { error: 'Ovo je dio Ajmo Pro.', code: 'pro_required', plan: ent.plan });
+    const limitMsg = ent.user
+      ? 'Iskoristio si besplatnu AI procjenu za danas. Otključaj neograničeno uz Ajmo Pro.'
+      : 'Iskoristio si besplatnu AI procjenu za danas. Napravi nalog i dobij 3 dana Pro besplatno.';
+    const limit = FREE_LIMITS[route] || 1;
+    const subj = ent.user ? 'u:' + ent.user.id : deviceSubject(req, ip);
+    if (!(await usageHit(subj, route, limit))) return json(res, 429, { error: limitMsg, code: 'free_limit', plan: ent.plan });
+    charged.push(subj);
+    if (!ent.user && !subj.startsWith('ip:')) { // gost: i IP adresa ima svoj (širi) limit, da brisanje podataka ne pomaže
+      const ipSubj = 'ip:' + ip;
+      if (!(await usageHit(ipSubj, route, limit * FREE_ANON_PER_IP))) { await usageRefund(subj, route); return json(res, 429, { error: limitMsg, code: 'free_limit', plan: ent.plan }); }
+      charged.push(ipSubj);
+    }
+  }
+  const refund = () => Promise.all(charged.map((s) => usageRefund(s, route))).catch(() => {});
   try {
-    return await handler(await readBody(req, bodyLimit), res);
+    const out = await handler(await readBody(req, bodyLimit), res);
+    if (res.statusCode >= 400) await refund();
+    return out;
   } catch (e) {
+    await refund();
     console.error(`/api/${route} error:`, e?.status || '', e?.message || e);
     if (res.headersSent) return;
     if (e?.status === 413) return json(res, 413, { error: 'Slika je prevelika. Probaj ponovo.' });
@@ -565,6 +678,7 @@ async function setPro(email, active){
   if(!SUPABASE_SERVICE_KEY) throw new Error('SUPABASE_SERVICE_KEY nije postavljen');
   const r = await sbAdmin('pro_users?on_conflict=email', 'POST', [{ email, active, updated_at: new Date().toISOString() }]);
   if(!r.ok) throw new Error('Supabase pro_users upsert HTTP ' + r.status);
+  _proCache.delete(email); // nova pretplata važi odmah
 }
 async function handleLsWebhook(req, res){
   // Bez tajnog ključa webhook je zatvoren — inače bi svako mogao sebi "kupiti" Pro.
@@ -818,12 +932,18 @@ http.createServer(async (req, res) => {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Vary', 'Origin');
         res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Device-Id');
       }
       if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
     }
     if (req.method === 'GET' && req.url.startsWith('/api/health')) {
       return json(res, 200, { ok: true, model: MODEL, vision: VISION_MODEL, keySet: !!API_KEY });
+    }
+    // status naloga za aplikaciju: pro / trial / free / anon (izvor istine je server)
+    if (req.method === 'GET' && req.url.split('?')[0] === '/api/me') {
+      const ent = await entitlement(req);
+      if (ent.invalid) return json(res, 401, { error: 'Sesija je istekla.', code: 'auth_expired' });
+      return json(res, 200, { plan: ent.plan, trialEndsAt: ent.trialEnd || null, trialDays: TRIAL_DAYS, free: FREE_LIMITS });
     }
     if (req.method === 'GET' && req.url.startsWith('/api/barcode')) {
       const code = new URL(req.url, 'http://x').searchParams.get('code');

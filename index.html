@@ -717,11 +717,12 @@ function projSvg(p){
   </svg>`;
 }
 function pickPlanOb(p){ selPlan=p; document.querySelectorAll('#obPlans .plan').forEach(function(el){ el.classList.toggle('sel', el.dataset.p===p); }); }
+// „3 dana Pro besplatno“ = napravi nalog (bez kartice); proba se računa od datuma naloga na serveru
 function payHook(){
-  track('checkout');
-  var p=selPlan||'year';
-  if(!loggedIn()){ requireAuth(()=>{ _completeOnboard(); startCheckout(p); }); return; }
-  _completeOnboard(); startCheckout(p);
+  track('trial');
+  const go=()=>{ _completeOnboard(); checkProStatus().then(()=>{ renderAll(); if(trialActive()) toast('Proba aktivna: 3 dana Pro ✨'); }); };
+  if(!loggedIn()){ requireAuth(go); return; }
+  go();
 }
 
 const STEPS=[
@@ -842,9 +843,9 @@ const STEPS=[
       <div class="plan" data-p="month" onclick="pickPlanOb('month')"><div class="rd"></div>
         <div><div class="pn">Mjesečno</div><div class="pd">Otkaži bilo kada</div></div>
         <div class="pp"><b>4,99€</b><span>/ mjesec</span></div></div></div>
-    <p class="sub" style="margin:4px 0 12px">Uđi odmah i probaj besplatno — <b>bez kartice, bez naloga</b>. Pro uključiš kad poželiš.</p>
+    <p class="sub" style="margin:4px 0 12px">Uđi odmah — <b>bez kartice, bez naloga</b> (1 AI procjena dnevno). Pro uključiš kad poželiš.</p>
     <button class="cta" onclick="finishOnboard()">Uđi besplatno →</button>
-    <div style="margin-top:14px"><a onclick="payHook()" style="color:var(--pro);font-size:13.5px;font-weight:800;cursor:pointer;text-decoration:underline">Ili probaj Ajmo Pro — 3 dana besplatno</a></div></div>`
+    <div style="margin-top:14px"><a onclick="payHook()" style="color:var(--pro);font-size:13.5px;font-weight:800;cursor:pointer;text-decoration:underline">Ili napravi nalog — 3 dana Pro besplatno, bez kartice</a></div></div>`
 ];
 function renderStep(){
   $('obStep').innerHTML=STEPS[obI]();
@@ -931,15 +932,15 @@ function finishOnboard(){
   _completeOnboard();   // besplatna verzija — BEZ naloga; prijava kasnije (profil) za sinhronizaciju/Pro
 }
 /* ===== PROBA (3 dana pune probe) + limit besplatnog AI ===== */
-var TRIAL_DAYS=3, TRIAL_MS=TRIAL_DAYS*24*60*60*1000, FREE_AI_PER_DAY=1;
-function trialActive(){ return !!S.trialStart && (Date.now()-S.trialStart) < TRIAL_MS; }
-function trialDaysLeft(){ if(!S.trialStart) return TRIAL_DAYS; return Math.max(0, Math.ceil((TRIAL_MS-(Date.now()-S.trialStart))/86400000)); }
+// Proba počinje pravljenjem naloga; status (pro/trial/free/anon) i kraj probe daje server (/api/me).
+var TRIAL_DAYS=3, FREE_AI_PER_DAY=1;
+function trialActive(){ return !S.pro && !!S.trialEnd && Date.now()<S.trialEnd; }
+function trialDaysLeft(){ if(!S.trialEnd) return TRIAL_DAYS; return Math.max(0, Math.ceil((S.trialEnd-Date.now())/86400000)); }
 function proAccess(){ return !!S.pro || trialActive(); }   // pun pristup: pravi Pro ILI aktivna proba
 function aiAllowed(){ if(proAccess()) return true; var t=todayStr(); if(S.aiDay!==t){ S.aiDay=t; S.aiCount=0; } return (S.aiCount||0) < FREE_AI_PER_DAY; }
 function aiConsume(){ if(proAccess()) return; var t=todayStr(); if(S.aiDay!==t){ S.aiDay=t; S.aiCount=0; } S.aiCount=(S.aiCount||0)+1; save(); }
 function _completeOnboard(){
   if(!S.onboarded) track('app_enter');
-  if(!S.trialStart) S.trialStart=Date.now();   // proba kreće od prvog ulaska
   S.onboarded=true; S.lastDate=todayStr();
   resetForNewUser();
   revealApp(); renderAll(); save();
@@ -968,8 +969,9 @@ function startApp(){
   load(); // učitaj lokalne postavke (tema itd.)
   try{ initPaddle(); }catch(e){}
   if(checkRecovery()) return;   // ako je korisnik stigao preko linka za promjenu lozinke
-  if(S.onboarded){ if(!S.trialStart && !S.pro) S.trialStart=Date.now(); revealApp(); renderAll(); }
+  if(S.onboarded){ revealApp(); renderAll(); }
   else { renderStep(); }  // ko je prošao onboarding ulazi u app (sa ili bez naloga); ostali -> onboarding
+  checkProStatus(); // status naloga sa servera (i za goste)
   // ako postoji sesija -> osvježi token i povuci podatke iz oblaka (best-effort)
   if(loggedIn()){ sbRefresh().then(()=>cloudPull().then(()=>{ if(S.onboarded){ revealApp(); renderAll(); } checkProStatus(); })); }
 }
@@ -1386,11 +1388,26 @@ function go(tab){
 }
 
 /* ================= AI: procjena obroka ================= */
-async function apiEstimate(payload){
-  const r=await fetch(API+'/api/estimate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||('HTTP '+r.status));}
+// anonimni ID uređaja (za besplatni dnevni limit gostiju) + login token ako postoji
+function deviceId(){ try{ let d=localStorage.getItem('ajmo_dev'); if(!d){ d=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2)).replace(/[^A-Za-z0-9-]/g,''); localStorage.setItem('ajmo_dev',d); } return d; }catch(e){ return ''; } }
+function apiHeaders(json){ const h={'X-Device-Id':deviceId()}; if(json) h['Content-Type']='application/json'; const s=_sess(); if(s&&s.access_token) h['Authorization']='Bearer '+s.access_token; return h; }
+// POST na naš server; istekli token se obnovi i zahtjev ponovi jednom. Greška nosi .code (free_limit, pro_required…)
+async function apiPost(path,payload){
+  const send=()=>fetch(API+path,{method:'POST',headers:apiHeaders(true),body:JSON.stringify(payload)});
+  let r=await send();
+  if(r.status===401 && loggedIn() && await sbRefresh()) r=await send();
+  if(!r.ok){ const e=await r.json().catch(()=>({})); const err=new Error(e.error||('HTTP '+r.status)); err.code=e.code; err.status=r.status; throw err; }
   return r.json();
 }
+async function apiEstimate(payload){ return apiPost('/api/estimate',payload); }
+// besplatni limit / Pro: gost dobija ponudu za nalog sa probom, prijavljeni paywall
+function limitNotice(err){
+  if(!err||(err.code!=='free_limit'&&err.code!=='pro_required')) return false;
+  const guest=!loggedIn();
+  $('aiOut').innerHTML=`🔒 ${esc(err.message)}<div style="margin-top:10px"><button class="cta" style="padding:12px 16px" onclick="${guest?'startTrialSignup()':'openPaywall()'}">${guest?'Napravi nalog — 3 dana Pro besplatno':'Otključaj Ajmo Pro'}</button></div>`;
+  return true;
+}
+function startTrialSignup(){ closeSheet(); requireAuth(()=>{ checkProStatus().then(()=>{ renderAll(); if(trialActive()) toast('Proba aktivna: 3 dana Pro ✨'); }); }); }
 function addApiItems(data){ (data.items||[]).forEach(it=>addMeal({
   name:it.name+(it.quantity?` (${it.quantity})`:''), e:it.emoji||'🍽️', kc:it.kcal,p:it.protein_g,c:it.carbs_g,f:it.fat_g })); }
 /* baza namirnica sa količinama (per = po 1 kom/čaši, ili po 100g za unit='g') */
@@ -1888,7 +1905,7 @@ function updateFavBtn(){ const b=$('favBtn'); if(!b)return; const on=S.favs.incl
   b.textContent=on?'★ Omiljeno':'☆ Omiljeno'; b.style.color=on?'#f6a723':'var(--muted)'; }
 async function aiAdd(){
   const v=$('aiIn').value.trim(); if(!v)return;
-  if(!aiAllowed()){ $('aiOut').innerHTML='🔒 Besplatna AI procjena je iskorišćena za danas. Otključaj neograničeno uz Pro.'; openPaywall(); return; }
+  if(!aiAllowed()){ limitNotice({code:'free_limit',message:loggedIn()?'Iskoristio si besplatnu AI procjenu za danas. Otključaj neograničeno uz Ajmo Pro.':'Iskoristio si besplatnu AI procjenu za danas. Napravi nalog i dobij 3 dana Pro besplatno.'}); return; }
   $('aiOut').innerHTML='⏳ AI procjenjuje…';
   try{ const data=await apiEstimate({text:v});
     if(!data.items||!data.items.length){$('aiOut').innerHTML='🤔 '+(data.note||'Nisam prepoznao. Probaj drugačije.');return;}
@@ -1896,6 +1913,7 @@ async function aiAdd(){
     $('aiOut').innerHTML=`✅ <b>${data.total.kcal} kcal</b> · B ${data.total.protein_g} · UH ${data.total.carbs_g} · M ${data.total.fat_g} g`;
     setTimeout(()=>{addApiItems(data);closeSheet();},500);
   }catch(err){
+    if(limitNotice(err)){ S.aiDay=todayStr(); S.aiCount=FREE_AI_PER_DAY; save(); return; }
     // Lokalna procjena samo bez interneta — kad AI vrati grešku, ne upisujemo "pogođeni" obrok.
     const g=(err instanceof TypeError)?localGuess(v):null;
     if(!g){$('aiOut').innerHTML=`⚠️ ${esc(friendlyErr(err))} Možeš izabrati namirnicu iz baze.`;return;}
@@ -1904,7 +1922,7 @@ async function aiAdd(){
 }
 async function handlePhoto(ev){
   const f=ev.target.files&&ev.target.files[0]; if(!f)return;
-  if(!aiAllowed()){ $('aiOut').innerHTML='🔒 Besplatno slikanje je iskorišćeno za danas. Otključaj neograničeno uz Pro.'; openPaywall(); return; }
+  if(!aiAllowed()){ limitNotice({code:'free_limit',message:loggedIn()?'Iskoristio si besplatno slikanje za danas. Otključaj neograničeno uz Ajmo Pro.':'Iskoristio si besplatno slikanje za danas. Napravi nalog i dobij 3 dana Pro besplatno.'}); return; }
   $('aiOut').innerHTML='📸 Učitavam sliku…';
   const url=await shrinkImage(f);
   $('aiOut').innerHTML='⏳ AI prepoznaje obrok sa slike…';
@@ -1913,7 +1931,7 @@ async function handlePhoto(ev){
     aiConsume();
     $('aiOut').innerHTML=`✅ Prepoznato: ${data.items.map(i=>i.emoji+' '+i.name).join(', ')}<br><b>${data.total.kcal} kcal</b> ukupno`;
     setTimeout(()=>{addApiItems(data);closeSheet();unlockBadge('photo');},900);
-  }catch(err){ $('aiOut').innerHTML=`⚠️ ${esc(friendlyErr(err))}`; }
+  }catch(err){ if(limitNotice(err)){ S.aiDay=todayStr(); S.aiCount=FREE_AI_PER_DAY; save(); return; } $('aiOut').innerHTML=`⚠️ ${esc(friendlyErr(err))}`; }
 }
 // Smanji fotografiju na ~1280 px (JPEG) prije slanja: brže, jeftinije i ispod limita servera.
 async function shrinkImage(file,max=1280,q=0.85){
@@ -1942,9 +1960,7 @@ async function makePlan(){
   }
   try{
     const avoid=Array.isArray(S.aiRecent)?S.aiRecent.slice(-16):[];
-    const r=await fetch(API+'/api/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({targetKcal:S.target.kcal,protein:S.target.p,goal:GOALS[S.goal].t,seed:S.planIdx,avoid})});
-    if(!r.ok)throw new Error('server');
-    const data=await r.json();
+    const data=await apiPost('/api/plan',{targetKcal:S.target.kcal,protein:S.target.p,goal:GOALS[S.goal].t,seed:S.planIdx,avoid});
     S.aiRecent=(S.aiRecent||[]).concat((data.meals||[]).map(m=>m.name)).slice(-24); save();
     renderPlan(data.meals,data.totalKcal); unlockBadge('plan');
   }catch(e){
@@ -2056,9 +2072,7 @@ async function openRecipe(i){
   try{
     let r=S.recipeCache[m.name];
     if(!r){
-      const resp=await fetch(API+'/api/recipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:m.name,ingredients:m.ingredients||[],kcal:m.kcal})});
-      if(!resp.ok) throw new Error('server');
-      r=await resp.json();
+      r=await apiPost('/api/recipe',{name:m.name,ingredients:m.ingredients||[],kcal:m.kcal});
       if(!r.steps||!r.steps.length) throw new Error('empty');
       S.recipeCache[m.name]=r; save();
     }
@@ -2530,8 +2544,7 @@ async function coachAsk(q){
   q=q||$('coachInput').value.trim(); if(!q)return; if($('coachInput'))$('coachInput').value='';
   $('coachBig').innerHTML='⏳ Trener razmišlja…';
   const context={goal:S.goal,targetKcal:S.target.kcal,eatenKcal:Math.round(S.eaten.kcal),leftKcal:Math.round(S.target.kcal-S.eaten.kcal),streak:S.streak};
-  try{ const r=await fetch(API+'/api/coach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,context})});
-    if(!r.ok)throw 0; const d=await r.json(); $('coachBig').innerHTML=d.answer||coachLocal(q);
+  try{ const d=await apiPost('/api/coach',{question:q,context}); $('coachBig').innerHTML=esc(d.answer||coachLocal(q));
   }catch(e){ $('coachBig').innerHTML=coachLocal(q); }
 }
 
@@ -2664,7 +2677,9 @@ function saveWeight(){
 /* ================= PAYWALL ================= */
 let selPlan='year';
 function openPaywall(){
-  dialog(`<span class="tag">3 DANA BESPLATNO</span>
+  // proba od 3 dana ide uz pravljenje naloga — nudi se samo gostima (prijavljeni su je već dobili)
+  const guest=!loggedIn();
+  dialog(`${guest?'<span class="tag">3 DANA BESPLATNO</span>':''}
     <div style="font-size:36px;margin-top:4px">✦</div>
     <h3 style="margin-top:6px">Ajmo Pro</h3>
     <div class="feat">
@@ -2679,8 +2694,11 @@ function openPaywall(){
       <div class="plan" data-p="month" onclick="pickPlan('month')"><div class="rd"></div>
         <div><div class="pn">Mjesečno</div><div class="pd">Otkaži bilo kada</div></div>
         <div class="pp"><b>4,99€</b><span>/ mjesec</span></div></div></div>
-    <button class="buy" onclick="buyPro()">Počni 3 dana besplatno</button>
-    <p class="tiny">Naplatu bezbjedno obrađuje Paddle · otkaži bilo kad.</p>`,true);
+    ${guest
+      ? `<button class="buy" onclick="startTrialSignup()">Napravi nalog — 3 dana besplatno</button>
+         <p class="tiny">Bez kartice. Poslije probe biraš da li nastavljaš uz Pro.<br><a onclick="buyPro()" style="text-decoration:underline;cursor:pointer">Ili se odmah pretplati</a></p>`
+      : `<button class="buy" onclick="buyPro()">Pretplati se</button>
+         <p class="tiny">Pretplata se automatski obnavlja dok je ne otkažeš · otkaži bilo kad.<br>Naplatu bezbjedno obrađuje Paddle.</p>`}`,true);
 }
 function pickPlan(p){selPlan=p;document.querySelectorAll('#plans .plan').forEach(el=>el.classList.toggle('sel',el.dataset.p===p));}
 function buyPro(){ const p=selPlan||'year'; closeSheet(); if(!loggedIn()){ requireAuth(()=>startCheckout(p)); return; } startCheckout(p); }
@@ -2942,22 +2960,20 @@ function startCheckout(plan){
     });
   }catch(e){ try{toast('Greška pri otvaranju plaćanja.');}catch(_){} }
 }
+// Status naloga dolazi sa servera (pro / trial / free / anon) — lokalno se samo pamti za prikaz.
 async function checkProStatus(){
-  if(!loggedIn()) return;
   try{
-    const email=(_sess()||{}).email||'';
-    const q=SB_URL+'/rest/v1/pro_users?select=active,expires_at&email=eq.'+encodeURIComponent(email);
-    let r=await fetch(q,{headers:_ah(true)});
-    if(r.status===401 && await sbRefresh()) r=await fetch(q,{headers:_ah(true)});
+    let r=await fetch(API+'/api/me',{headers:apiHeaders(false)});
+    if(r.status===401 && loggedIn() && await sbRefresh()) r=await fetch(API+'/api/me',{headers:apiHeaders(false)});
     if(!r.ok) return;
-    const arr=await r.json().catch(()=>[]);
-    const row = (Array.isArray(arr)&&arr[0]) ? arr[0] : null;
-    let active = !!(row && row.active===true);
-    if(active && row.expires_at){ active = (new Date(row.expires_at).getTime() > Date.now()); } // istekla poklon-pretplata → nije Pro
-    if(!!active!==!!S.pro){ S.pro=!!active; save(); try{renderProfile();renderProgress();}catch(e){} }
+    const d=await r.json().catch(()=>null); if(!d||!d.plan) return;
+    const pro=d.plan==='pro', te=(d.plan==='anon')?0:(+d.trialEndsAt||0);
+    if(pro!==!!S.pro || te!==(S.trialEnd||0) || d.plan!==S.tier){
+      S.pro=pro; S.trialEnd=te; S.tier=d.plan; save(); try{renderProfile();renderProgress();}catch(e){}
+    }
   }catch(e){}
 }
-window.addEventListener('focus',()=>{ if(loggedIn()) checkProStatus(); });
+window.addEventListener('focus',()=>{ checkProStatus(); });
 
 /* ================= PWA: instalacija + service worker ================= */
 if('serviceWorker' in navigator){

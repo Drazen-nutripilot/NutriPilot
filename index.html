@@ -656,7 +656,10 @@ function calcPlan(){
   let bmr = 10*S.w + 6.25*S.h - 5*S.age + (S.sex==='m'?5:-161);
   let tdee = bmr*S.act;
   if(S.goal==='lose') tdee-=500; if(S.goal==='gain') tdee+=400;
-  const kcal=Math.round(tdee/10)*10;
+  // zdravi minimum: ispod ovoga ne idemo bez nadzora stručnjaka
+  const floor=S.sex==='m'?1500:1200;
+  S.kcalFloored=tdee<floor;
+  const kcal=Math.round(Math.max(tdee,floor)/10)*10;
   const p=Math.round(1.8*S.w), f=Math.round(kcal*0.25/9), c=Math.max(0,Math.round((kcal-p*4-f*9)/4));
   S.target={kcal,p,c,f};
 }
@@ -790,11 +793,13 @@ const STEPS=[
     <button class="cta" onclick="saveName();obNext()">Nastavi</button></div>`,
   // 3 body metrics
   ()=>`<div class="step"><h1>Tvoje mjere</h1><p class="sub">Za tačan dnevni cilj kalorija.</p>
-    <div class="fld"><label>Godine</label><input id="iAge" type="number" inputmode="numeric" value="${S.age}"></div>
+    <div class="fld"><label>Godine</label><input id="iAge" type="number" inputmode="numeric" placeholder="npr. 30" value="${S.metricsSet?S.age:''}"></div>
     <div class="two">
-      <div class="fld"><label>Visina (cm)</label><input id="iH" type="number" inputmode="numeric" value="${S.h}"></div>
-      <div class="fld"><label>Težina (kg)</label><input id="iW" type="number" inputmode="numeric" value="${S.w}"></div></div>
-    <button class="cta" onclick="saveMetrics();obNext()">Nastavi</button></div>`,
+      <div class="fld"><label>Visina (cm)</label><input id="iH" type="number" inputmode="numeric" placeholder="npr. 170" value="${S.metricsSet?S.h:''}"></div>
+      <div class="fld"><label>Težina (kg)</label><input id="iW" type="number" inputmode="decimal" step="0.1" placeholder="npr. 72" value="${S.metricsSet?S.w:''}"></div></div>
+    <p id="mErr" class="hint" style="color:var(--danger);min-height:18px;margin:2px 2px 8px"></p>
+    <p class="hint" style="margin:0 2px 12px">Ajmo je namijenjen osobama od 18 i više godina.</p>
+    <button class="cta" onclick="if(saveMetrics())obNext()">Nastavi</button></div>`,
   // 4 activity
   ()=>`<div class="step"><h1>Koliko si aktivan?</h1><p class="sub">Uključujući trening i kretanje.</p>
     <div class="choice">${ACTS.map(([v,t])=>`
@@ -814,7 +819,9 @@ const STEPS=[
       <div class="m"><b>${S.target.p}g</b><span>Proteini</span></div>
       <div class="m"><b>${S.target.c}g</b><span>Ugljeni h.</span></div>
       <div class="m"><b>${S.target.f}g</b><span>Masti</span></div></div>
+    ${S.kcalFloored?`<p class="sub" style="margin-top:14px;background:var(--soft);border-radius:14px;padding:10px 12px;font-size:13px">Postavili smo zdravi minimum od <b>${fmt(S.target.kcal)} kcal</b> — manje od toga ne preporučujemo bez nadzora ljekara ili nutricionista.</p>`:''}
     <p class="sub" style="margin-top:20px">Sve možeš promijeniti kasnije u profilu.</p>
+    <p class="hint" style="margin:-4px 8px 12px;font-size:11.5px">Ajmo daje procjene i nije medicinski savjet. Ako si trudna, doiš ili imaš zdravstvenih problema, posavjetuj se sa ljekarom.</p>
     <button class="cta" onclick="obNext()">Vidi moju projekciju →</button></div>`,
   // 7 projekcija do cilja
   ()=>{ const p=projInfo(); const dateS=projDateStr(p.weeks);
@@ -921,7 +928,22 @@ function pickGoal(k){ S.goal=k; renderStep(); }
 function pickSex(s){ S.sex=s; renderStep(); }
 function pickAct(v){ S.act=v; renderStep(); }
 function saveName(){ const v=$('iName').value.trim(); if(v)S.name=v; }
-function saveMetrics(){ S.age=+$('iAge').value||30; S.h=+$('iH').value||170; S.w=+$('iW').value||72; S.weights[6]=S.w; }
+const MIN_AGE=18;
+function bmiOf(w,h){ return h?w/Math.pow(h/100,2):0; }
+function healthyMinWeight(h){ return Math.ceil(18.5*Math.pow(h/100,2)); }
+// provjera mjera u onboardingu: 18+, realni opsezi, bez mršavljenja ispod zdrave težine
+function saveMetrics(){
+  const a=+$('iAge').value, h=+$('iH').value, w=+String($('iW').value).replace(',','.'), er=$('mErr');
+  const fail=m=>{ if(er) er.textContent=m; return false; };
+  if(!a) return fail('Unesi godine.');
+  if(a<MIN_AGE) return fail('Ajmo je namijenjen osobama od 18 i više godina. Za ishranu i trening u mlađim godinama posavjetuj se sa ljekarom ili nutricionistom.');
+  if(a>100) return fail('Provjeri unesene godine.');
+  if(!(h>=120&&h<=230)) return fail('Visina treba biti između 120 i 230 cm.');
+  if(!(w>=35&&w<=300)) return fail('Težina treba biti između 35 i 300 kg.');
+  if(S.goal==='lose' && bmiOf(w,h)<18.5) return fail(`Po tvojim mjerama težina je već ispod zdravog opsega, pa mršavljenje ne preporučujemo. Vrati se korak nazad i izaberi „Održati“ ili „Dobiti mišiće“.`);
+  S.age=a; S.h=h; S.w=w; S.weights[6]=w; S.metricsSet=true;
+  return true;
+}
 function computeAndReveal(){
   calcPlan(); obI=5; renderStep();
   setTimeout(()=>{ obI=6; renderStep(); },1400);
@@ -1189,13 +1211,40 @@ function renderProfile(){
 /* ================= POST (fasting) ================= */
 function _fdef(){ if(!S.fast) S.fast={active:false,start:0,hours:16,done:0}; return S.fast; }
 function setFastProtocol(h){ const f=_fdef(); if(f.active) return; f.hours=h; save(); renderFast(); }
+/* provjera prije prvog posta: post nije za svakoga (trudnoća, dijabetes, poremećaji ishrane…) */
+function openFastCheck(){
+  const lowBmi=bmiOf(+S.w,+S.h)<18.5;
+  if(lowBmi){
+    sheet(`<h3>Post trenutno ne preporučujemo</h3>
+      <p class="hint" style="margin-top:6px">Po tvojim mjerama težina je ispod zdravog opsega. U tom slučaju isprekidani post može više da škodi nego da koristi — posavjetuj se sa ljekarom. Ajmo ti i dalje pravi plan ishrane i prati obroke.</p>
+      <button class="cta" style="margin-top:12px" onclick="closeSheet()">Razumijem</button>`);
+    return;
+  }
+  sheet(`<h3>Prije prvog posta</h3>
+    <p class="hint" style="margin-top:6px">Isprekidani post nije za svakoga. Da li se nešto od ovoga odnosi na tebe?</p>
+    <div style="margin:12px 0;font-size:14px;line-height:1.5">
+      ${['Trudnoća ili dojenje','Dijabetes (naročito ako koristiš insulin ili lijekove za šećer)','Poremećaj ishrane sada ili ranije (anoreksija, bulimija, prejedanje)','Lijekovi koji se moraju uzimati uz hranu','Drugo ozbiljno zdravstveno stanje (srce, bubrezi, nizak pritisak)']
+        .map(t=>`<div style="display:flex;gap:10px;margin:7px 0"><span style="color:var(--danger);font-weight:800">•</span><span>${t}</span></div>`).join('')}
+    </div>
+    <button class="cta" onclick="fastCheckOk()">Ništa od ovoga — kreni</button>
+    <button class="cta" style="background:var(--soft);color:var(--ink);margin-top:10px" onclick="fastCheckNo()">Nešto se odnosi na mene</button>
+    <p class="hint" style="margin-top:10px;font-size:11.5px">Ako se tokom posta osjećaš loše (vrtoglavica, slabost), prekini post i jedi. Ajmo nije medicinski savjet.</p>`);
+}
+function fastCheckOk(){ S.fastOk=true; save(); closeSheet(); toggleFast(); }
+function fastCheckNo(){
+  sheet(`<h3>Hvala što si nam ${S.sex==='f'?'rekla':'rekao'}</h3>
+    <p class="hint" style="margin-top:6px">U tom slučaju ne preporučujemo isprekidani post bez dogovora sa ljekarom. Ajmo ti i dalje pravi plan ishrane, broji kalorije i prati napredak — bez posta.</p>
+    <button class="cta" style="margin-top:12px" onclick="closeSheet()">U redu</button>
+    <button onclick="fastCheckOk()" style="width:100%;margin-top:12px;padding:10px;color:var(--muted);font-size:13px;font-weight:700">Ljekar mi je odobrio post</button>`);
+}
 function toggleFast(){
   const f=_fdef();
-  if(!f.active){ f.active=true; f.start=Date.now(); try{toast('Fasting počinje — drži se! 💪');}catch(e){} }
+  if(!f.active && !S.fastOk){ openFastCheck(); return; }
+  if(!f.active){ f.active=true; f.start=Date.now(); try{toast('Post počinje — drži se! 💪');}catch(e){} }
   else {
     const goalMs=f.hours*3600000, el=Date.now()-f.start;
-    if(el>=goalMs){ f.done=(f.done||0)+1; try{toast('Fasting završen — svaka čast! 🎉');}catch(e){} try{awardXp(15);}catch(e){} }
-    else { try{toast('Fasting prekinut.');}catch(e){} }
+    if(el>=goalMs){ f.done=(f.done||0)+1; try{toast('Post završen — svaka čast! 🎉');}catch(e){} try{awardXp(15);}catch(e){} }
+    else { try{toast('Post prekinut.');}catch(e){} }
     f.active=false; f.start=0;
   }
   save(); renderFast();
@@ -1208,8 +1257,8 @@ function renderFast(){
   let body;
   if(!f.active){
     body=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 12px">${chips}</div>
-      <button onclick="toggleFast()" style="width:100%;border:none;border-radius:14px;padding:13px;font-weight:800;font-size:15px;color:#fff;background:linear-gradient(135deg,var(--green),var(--green2));cursor:pointer">Započni fasting (${f.hours}h)</button>
-      <p style="margin:10px 2px 0;color:var(--muted);font-size:12.5px">Prozor ishrane: ${24-f.hours}h · fasting: ${f.hours}h</p>`;
+      <button onclick="toggleFast()" style="width:100%;border:none;border-radius:14px;padding:13px;font-weight:800;font-size:15px;color:#fff;background:linear-gradient(135deg,var(--green),var(--green2));cursor:pointer">Započni post (${f.hours}h)</button>
+      <p style="margin:10px 2px 0;color:var(--muted);font-size:12.5px">Prozor ishrane: ${24-f.hours}h · post: ${f.hours}h</p>`;
   } else {
     const now=Date.now(), elp=now-f.start, prog=Math.min(1,elp/goalMs), rem=Math.max(0,goalMs-elp), done=elp>=goalMs;
     const endT=new Date(f.start+goalMs).toLocaleTimeString('sr-Latn',{hour:'2-digit',minute:'2-digit'});
@@ -1225,11 +1274,11 @@ function renderFast(){
         <div style="font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">${done?'Cilj postignut 🎉':'Preostalo'}</div>
         <div style="font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--green2)">${done?_hhmmss(elp):_hhmmss(rem)}</div>
         <div style="font-size:12.5px;color:var(--muted);margin-top:2px">Prošlo ${_hhmmss(elp)} · do ${endT}</div>
-        <button onclick="toggleFast()" style="margin-top:10px;border:none;border-radius:12px;padding:10px 16px;font-weight:800;font-size:14px;color:#fff;background:${done?'linear-gradient(135deg,var(--green),var(--green2))':'#e0574a'};cursor:pointer">${done?'Završi fasting ✓':'Prekini'}</button>
+        <button onclick="toggleFast()" style="margin-top:10px;border:none;border-radius:12px;padding:10px 16px;font-weight:800;font-size:14px;color:#fff;background:${done?'linear-gradient(135deg,var(--green),var(--green2))':'#e0574a'};cursor:pointer">${done?'Završi post ✓':'Prekini'}</button>
       </div></div>`;
   }
   el.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between">
-      <div style="display:flex;align-items:center;gap:10px"><div style="width:34px;height:34px;border-radius:12px;background:#fdeede;display:flex;align-items:center;justify-content:center;font-size:18px">⏱️</div><b style="font-size:16px">Fasting</b></div>
+      <div style="display:flex;align-items:center;gap:10px"><div style="width:34px;height:34px;border-radius:12px;background:#fdeede;display:flex;align-items:center;justify-content:center;font-size:18px">⏱️</div><b style="font-size:16px">Isprekidani post</b></div>
       <span style="font-size:12px;color:var(--muted)">${f.done||0} završenih</span>
     </div>${body}`;
 }
@@ -2564,7 +2613,12 @@ function openEdit(){
 let editG=null;
 function editGoal(k){ editG=k; document.querySelectorAll('.sheet .seg button').forEach(b=>b.classList.toggle('on',b.textContent===GOALS[k].t)); }
 function saveEdit(){ if(editG)S.goal=editG; S.w=+$('eW').value||S.w; S.tw=+$('eTW').value||S.tw; S.act=+$('eAct').value; recordWeight(S.w);
-  calcPlan(); closeSheet(); renderAll(); toast('Plan ažuriran ✓'); }
+  // zdravstvena granica: bez mršavljenja ispod BMI 18.5
+  let note='';
+  const minW=healthyMinWeight(S.h||170);
+  if(S.goal==='lose' && S.w<=minW){ S.goal='maintain'; note='Težina je već na donjoj granici zdravog opsega — cilj je prebačen na održavanje.'; }
+  else if(S.goal==='lose' && S.tw<minW){ S.tw=minW; note=`Ciljna težina je podešena na zdravi minimum od ${minW} kg.`; }
+  calcPlan(); closeSheet(); renderAll(); toast(note||'Plan ažuriran ✓'); }
 
 /* ================= GEJMIFIKACIJA ================= */
 function awardXp(n){

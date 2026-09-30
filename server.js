@@ -612,6 +612,36 @@ async function usageRefund(subject, kind) { // AI nije uspio → ne troši koris
   const k = subject + '|' + kind, n = _usageMem.get(k) || 0;
   if (n > 0) _usageMem.set(k, n - 1);
 }
+/* ---------- brisanje naloga (Apple 5.1.1(v): mora biti moguće u aplikaciji) ----------
+   Provjeri token → obriši podatke vezane za nalog → obriši sam nalog u Supabase Auth.
+   Stanje aplikacije (obroci, težina…) je u user_metadata naloga, pa nestaje zajedno sa nalogom. */
+async function handleAccountDelete(req, res) {
+  const user = await authUser(req);
+  if (!user || user === 'invalid') return json(res, 401, { error: 'Prijavi se ponovo pa pokušaj brisanje.', code: 'auth_expired' });
+  const body = await readBody(req, 4096);
+  if (body.confirm !== true) return json(res, 400, { error: 'Brisanje nije potvrđeno.' });
+  if (!SUPABASE_SERVICE_KEY) return json(res, 503, { error: 'Brisanje trenutno nije dostupno. Piši nam na info@aquaelektro.com.' });
+  const hadPro = await isPro(user.email);
+  const enc = encodeURIComponent;
+  try {
+    // prateći podaci (neuspjeh ovdje ne smije spriječiti brisanje naloga, ali se loguje)
+    for (const q of [`pro_users?email=eq.${enc(user.email)}`, `waitlist?email=eq.${enc(user.email)}`, `ai_usage?subject=eq.${enc('u:' + user.id)}`]) {
+      const r = await sbAdmin(q, 'DELETE').catch(() => null);
+      if (!r || (!r.ok && r.status !== 404)) console.error('account delete: ' + q.split('?')[0] + ' HTTP ' + (r && r.status));
+    }
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${enc(user.id)}`, { method: 'DELETE',
+      headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: 'Bearer ' + SUPABASE_SERVICE_KEY }, signal: AbortSignal.timeout(10000) });
+    if (!r.ok && r.status !== 404) { console.error('account delete: auth user HTTP ' + r.status); return json(res, 502, { error: 'Brisanje nije uspjelo — probaj ponovo za minut.' }); }
+    _proCache.delete(user.email);
+    for (const [k, v] of _authCache) if (v.user && v.user.id === user.id) _authCache.delete(k);
+    console.log('account deleted: ' + user.id);
+    return json(res, 200, { ok: true, hadPro });
+  } catch (e) {
+    console.error('account delete error:', e?.message || e);
+    return json(res, 502, { error: 'Brisanje nije uspjelo — probaj ponovo za minut.' });
+  }
+}
+
 function deviceSubject(req, ip) {
   const d = String(req.headers['x-device-id'] || '');
   return /^[A-Za-z0-9-]{16,64}$/.test(d) ? 'd:' + d : 'ip:' + ip;
@@ -798,10 +828,10 @@ const PRIVACY_HTML = legalPage('Politika privatnosti', `
 <p>Pojedini obrađivači nalaze se van Crne Gore (npr. u SAD), uz odgovarajuće mjere zaštite podataka.</p>
 
 <h2>5. Čuvanje podataka</h2>
-<p>Tvoje podatke čuvamo dok god imaš aktivan nalog. Kada zatražiš brisanje naloga, brišemo tvoje lične podatke (osim onoga što smo zakonski dužni zadržati, npr. evidencija o plaćanju).</p>
+<p>Tvoje podatke čuvamo dok god imaš aktivan nalog. Nalog možeš obrisati sam, bilo kad, direktno u aplikaciji: <b>Profil → Nalog → Obriši nalog</b>. Tada odmah brišemo tvoj nalog i sve podatke vezane za njega (obroke, težinu, planove, podešavanja), osim onoga što smo zakonski dužni zadržati, npr. evidencija o plaćanju. Brisanje naloga ne otkazuje pretplatu — nju otkaži preko linka iz Paddle emaila ili nam piši.</p>
 
 <h2>6. Tvoja prava</h2>
-<p>Imaš pravo na: pristup svojim podacima, ispravku, brisanje, ograničenje obrade, prigovor, prenosivost i povlačenje saglasnosti. Za ostvarivanje ovih prava, kao i za <b>brisanje naloga</b>, piši nam na <a href="mailto:info@aquaelektro.com">info@aquaelektro.com</a> i odgovorićemo u razumnom roku.</p>
+<p>Imaš pravo na: pristup svojim podacima, ispravku, brisanje, ograničenje obrade, prigovor, prenosivost i povlačenje saglasnosti. Nalog brišeš sam u aplikaciji (Profil → Nalog → Obriši nalog). Za ostvarivanje ostalih prava piši nam na <a href="mailto:info@aquaelektro.com">info@aquaelektro.com</a> i odgovorićemo u razumnom roku.</p>
 
 <h2>7. Bezbjednost</h2>
 <p>Podaci se prenose preko kriptovane veze (HTTPS), a lozinke su zaštićene kod pružaoca autentifikacije. Nijedan sistem nije 100% bezbjedan, ali preduzimamo razumne mjere zaštite.</p>
@@ -945,6 +975,7 @@ http.createServer(async (req, res) => {
       if (ent.invalid) return json(res, 401, { error: 'Sesija je istekla.', code: 'auth_expired' });
       return json(res, 200, { plan: ent.plan, trialEndsAt: ent.trialEnd || null, trialDays: TRIAL_DAYS, free: FREE_LIMITS });
     }
+    if (req.method === 'POST' && req.url.split('?')[0] === '/api/account/delete') return await handleAccountDelete(req, res);
     if (req.method === 'GET' && req.url.startsWith('/api/barcode')) {
       const code = new URL(req.url, 'http://x').searchParams.get('code');
       return handleBarcode(code, res);

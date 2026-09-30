@@ -2887,12 +2887,37 @@ function applyState(obj){
 }
 function setSync(ok){ const el=$('acctRt'); if(el && loggedIn()) el.innerHTML=(ok?'Sinhronizovano ✓':'Van mreže')+' <span>›</span>'; }
 
+/* ===== brisanje naloga (zahtjev App Store / Google Play) ===== */
+function openDeleteAccount(){
+  const em=(_sess()||{}).email||'';
+  sheet(`<h3 style="color:var(--danger)">Obriši nalog</h3>
+    <p class="hint" style="margin-top:6px">Nalog <b>${esc(em)}</b> i svi podaci vezani za njega biće <b>trajno obrisani</b>: obroci, istorija, težina, planovi, postignuća i podešavanja. Ovo se ne može vratiti.</p>
+    ${S.pro?`<div style="background:var(--soft);border-radius:14px;padding:12px 14px;margin:10px 0;font-size:13.5px;line-height:1.45">⚠️ Imaš aktivan <b>Ajmo Pro</b>. Brisanje naloga <b>ne otkazuje pretplatu</b> — otkaži je preko linka iz Paddle emaila (ili nam piši na info@aquaelektro.com), da ti ne bi bila naplaćena sljedeća rata.</div>`:''}
+    <div class="fld" style="margin-top:12px"><label>Za potvrdu upiši OBRIŠI</label><input id="delConfirm" autocomplete="off" autocapitalize="characters" oninput="$('delBtn').disabled=!['OBRIŠI','OBRISI'].includes(this.value.trim().toUpperCase())"></div>
+    <p id="delErr" class="hint" style="color:var(--danger);min-height:18px"></p>
+    <button id="delBtn" class="cta" disabled style="background:var(--danger)" onclick="doDeleteAccount()">Trajno obriši nalog</button>
+    <button class="cta" style="background:var(--soft);color:var(--ink);margin-top:10px" onclick="closeSheet()">Odustani</button>`);
+}
+async function doDeleteAccount(){
+  const b=$('delBtn'), er=$('delErr'); if(b){ b.disabled=true; b.textContent='Brišem…'; }
+  try{
+    await apiPost('/api/account/delete',{confirm:true});
+    _setSess(null);
+    try{ localStorage.removeItem(STORE); }catch(e){}
+    closeSheet(); toast('Nalog je obrisan.');
+    setTimeout(()=>location.reload(),1200);
+  }catch(e){
+    if(er) er.textContent=friendlyErr(e);
+    if(b){ b.disabled=false; b.textContent='Trajno obriši nalog'; }
+  }
+}
 function openAuth(){
   if(loggedIn()){
     const em=(_sess()||{}).email||'';
-    sheet(`<h3>Nalog ☁️</h3><p class="hint">Prijavljen kao <b>${em}</b>. Podaci se čuvaju u oblaku i prate te preko uređaja.</p>
+    sheet(`<h3>Nalog ☁️</h3><p class="hint">Prijavljen kao <b>${esc(em)}</b>. Podaci se čuvaju u oblaku i prate te preko uređaja.</p>
       <button class="cta" onclick="cloudPush();toast('Sinhronizovano ✓')">Sinhronizuj sad</button>
-      <button class="cta" style="background:var(--soft);color:var(--green2);margin-top:10px" onclick="sbLogout();closeSheet()">Odjava</button>`);
+      <button class="cta" style="background:var(--soft);color:var(--green2);margin-top:10px" onclick="sbLogout();closeSheet()">Odjava</button>
+      <button onclick="openDeleteAccount()" style="width:100%;margin-top:16px;padding:12px;color:var(--danger);font-weight:700;font-size:14px">Obriši nalog</button>`);
     return;
   }
   sheet(`<h3>Prijava / Registracija</h3>

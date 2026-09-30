@@ -551,20 +551,20 @@ const S = {
   onboarded:false, pro:false, trialStart:null, aiDay:'', aiCount:0, theme:'light', notif:true,
   name:'', goal:'lose', sex:'f', age:30, h:170, w:72, tw:66, act:1.375,
   target:{kcal:0,p:0,c:0,f:0}, eaten:{kcal:0,p:0,c:0,f:0},
-  meals:[], water:5, streak:12,
-  weights:[73.4,73.0,72.8,72.5,72.3,72.0,72.0], plan:null,
+  meals:[], water:0, streak:0, days:{}, curDay:'', streakDay:'',
+  weights:[], plan:null,
   waterGoal:8, recent:[], favs:['jaja','piletina'],
   customFoods:{}, customSeq:0,
-  steps:6200, stepGoal:10000, fast:{active:false,start:0,hours:16,done:0}, workouts:[],
+  steps:0, stepGoal:10000, fast:{active:false,start:0,hours:16,done:0}, workouts:[],
   shop:[], recipeCache:{},
-  weekKcal:[1720,1540,1980,1600,1450,1810,0],
+  weekKcal:[0,0,0,0,0,0,0],
   trainDone:{}, trainWeek:0, wPeriod:'7', weights30:[], monthKcal:[],
   // gejmifikacija
-  xp:340, level:4, week:[1,1,1,0,1,1,2], // 1=cilj ispunjen, 0=propušten, 2=danas
+  xp:0, level:1, week:[0,0,0,0,0,0,0], // 1=cilj ispunjen, 0=propušten, 2=danas, 3=budući dan
   badges:[
     {id:'first',ic:'🍽️',name:'Prvi zalogaj',desc:'Zabilježi prvi obrok',got:false},
-    {id:'streak7',ic:'🔥',name:'Nedjelja u nizu',desc:'7 dana zaredom',got:true},
-    {id:'water',ic:'💧',name:'Hidratacija',desc:'8 čaša vode u danu',got:true},
+    {id:'streak7',ic:'🔥',name:'Nedjelja u nizu',desc:'7 dana zaredom',got:false},
+    {id:'water',ic:'💧',name:'Hidratacija',desc:'8 čaša vode u danu',got:false},
     {id:'protein',ic:'💪',name:'Proteinski heroj',desc:'Ispuni cilj proteina',got:false},
     {id:'streak30',ic:'🏆',name:'Mjesec šampion',desc:'30 dana zaredom',got:false},
     {id:'plan',ic:'✨',name:'Isplaniran',desc:'Napravi AI plan obroka',got:false},
@@ -576,13 +576,77 @@ const S = {
 const LEVELS=[0,100,250,450,700,1000,1400,1900]; // XP prag za nivo (index=level-1)
 function xpForNext(){ return LEVELS[S.level]||99999; }
 function xpPrev(){ return LEVELS[S.level-1]||0; }
-/* mock istorija za mjesečni pregled (30 dana) */
-(function seedHistory(){
-  let w=(S.w||72)+1.9;
-  for(let i=0;i<30;i++){ w-=0.05+(Math.random()*0.12-0.06); S.weights30.push(+w.toFixed(1)); }
-  S.weights30[29]=S.w;
-  for(let i=0;i<30;i++) S.monthKcal.push(Math.round(1450+Math.random()*750));
-})();
+/* ================= ISTORIJA PO DANIMA =================
+   S.days[YYYY-MM-DD] = {k:kcal,p,c,f,n:broj obroka,wa:voda,st:koraci,b:potrošeno,t:cilj kcal,w:težina}
+   Čuva se kompaktno i samo HIST_DAYS dana (cijelo stanje ide u Supabase user_metadata / token).
+   Streak se vodi inkrementalno (streakDay), pa ne zavisi od dužine istorije. */
+const HIST_DAYS=45;
+function dayKey(d=new Date()){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function keyFromLegacy(s){ const m=String(s||'').match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/); return m?m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'):''; }
+function daysObj(){ if(!S.days||typeof S.days!=='object'||Array.isArray(S.days)) S.days={}; return S.days; }
+function dayMet(r){ const t=(r&&r.t)||S.target.kcal; return !!r && r.k>0 && r.k<=t*1.05; }
+// upiši rezime tekućeg dana (obroci, voda, koraci, vježbe) pod njegov datum
+function snapshotDay(key){
+  const D=daysObj(); key=key||S.curDay||dayKey();
+  const r=D[key]||{}, e=S.eaten||{};
+  Object.assign(r,{k:Math.round(e.kcal||0),p:Math.round(e.p||0),c:Math.round(e.c||0),f:Math.round(e.f||0),
+    n:(S.meals||[]).length,wa:S.water||0,st:S.steps||0,b:todayBurned(),t:S.target.kcal||0});
+  if(!r.n&&!r.wa&&!r.st&&!r.b&&!r.w) delete D[key]; else D[key]=r;
+  const cutoff=dayKey(addDays(new Date(),-HIST_DAYS));
+  Object.keys(D).forEach(k=>{ if(k<cutoff) delete D[k]; });
+}
+function recordWeight(v){ const D=daysObj(), k=dayKey(); D[k]=Object.assign(D[k]||{},{w:+v}); }
+// streak: dan se broji čim ima bar jedan obrok
+function markActiveToday(){
+  const tk=dayKey(), yk=dayKey(addDays(new Date(),-1));
+  if(S.streakDay===tk) return;
+  S.streakPrevDay=S.streakDay||''; S.streakPrevN=S.streak||0;
+  S.streak=(S.streakDay===yk)?(S.streak||0)+1:1; S.streakDay=tk;
+  if(S.streak>=7) unlockBadge('streak7');
+  if(S.streak>=30) unlockBadge('streak30');
+}
+function unmarkToday(){ if(S.streakDay===dayKey()){ S.streak=S.streakPrevN||0; S.streakDay=S.streakPrevDay||''; } }
+// izvedeni nizovi za ekrane: sedmica (pon–ned), 30 dana, težina, živi streak
+function computeHistory(){
+  const D=daysObj(), today=new Date(), tk=dayKey(today), yk=dayKey(addDays(today,-1));
+  if(S.streakDay!==tk && S.streakDay!==yk) S.streak=0;
+  const dow=(today.getDay()+6)%7, mon=addDays(today,-dow);
+  S.week=[]; S.weekKcal=[]; S.weekTodayIdx=dow;
+  for(let i=0;i<7;i++){ const r=D[dayKey(addDays(mon,i))];
+    S.weekKcal.push(r?r.k||0:0); S.week.push(i===dow?2:i>dow?3:dayMet(r)?1:0); }
+  S.monthKcal=[]; S.monthMet=0;
+  for(let i=29;i>=0;i--){ const r=D[dayKey(addDays(today,-i))]; if(r&&r.k>0){ S.monthKcal.push(r.k); if(dayMet(r)) S.monthMet++; } }
+  const series=n=>{ let last=null; const out=[];
+    for(let i=HIST_DAYS;i>=n;i--){ const r=D[dayKey(addDays(today,-i))]; if(r&&r.w) last=r.w; }
+    for(let i=n-1;i>=0;i--){ const r=D[dayKey(addDays(today,-i))]; if(r&&r.w) last=r.w; out.push(last); }
+    const first=out.find(v=>v!=null), res=out.map(v=>v==null?(first!=null?first:+S.w):v);
+    if(+S.w) res[res.length-1]=+S.w; // danas = trenutna težina iz profila
+    return res; };
+  S.weights=series(7); S.weights30=series(30);
+}
+// prelazak na novi dan: zaključi stari dan pod njegovim datumom, pa resetuj dnevne brojače
+// postojeći korisnici: napravi istoriju i upiši trenutnu težinu kao početnu tačku
+function migrateHistory(){
+  const D=daysObj();
+  if(!S.curDay) S.curDay=keyFromLegacy(S.lastDate)||dayKey();
+  if(S.onboarded && !Object.values(D).some(r=>r&&r.w)){ const k=S.curDay; D[k]=Object.assign(D[k]||{},{w:+S.w||70}); }
+}
+function rolloverIfNewDay(){
+  if(!S.curDay) S.curDay=keyFromLegacy(S.lastDate)||dayKey();
+  if(S.lastDate===todayStr()) return false;
+  // zbir starog dana računamo iz obroka (ne vjerujemo sačuvanom S.eaten)
+  const e={kcal:0,p:0,c:0,f:0}; (S.meals||[]).forEach(m=>{const s=mealMacros(m);e.kcal+=s.kc;e.p+=s.p;e.c+=s.c;e.f+=s.f;}); S.eaten=e;
+  snapshotDay(S.curDay);
+  // ako je stari dan imao obroke a streak ga još nije brojao (stari podaci / drugi uređaj), uračunaj ga
+  if((S.meals||[]).length && (S.streakDay||'')<S.curDay){
+    const [y,m,d]=S.curDay.split('-').map(Number), prev=dayKey(addDays(new Date(y,m-1,d),-1));
+    S.streak=(S.streakDay===prev)?(S.streak||0)+1:1; S.streakDay=S.curDay; S.streakPrevDay=''; S.streakPrevN=0;
+  }
+  S.meals=[]; S.eaten={kcal:0,p:0,c:0,f:0}; S.water=0; S.steps=0; S.workouts=[];
+  S.lastDate=todayStr(); S.curDay=dayKey();
+  return true;
+}
 const $ = id => document.getElementById(id);
 const fmt = n => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');
 const SLOTS=['Doručak','Užina','Ručak','Večera'];
@@ -611,6 +675,8 @@ function resetForNewUser(){
   S.meals=[]; S.eaten={kcal:0,p:0,c:0,f:0};
   if(Array.isArray(S.badges)) S.badges.forEach(b=>{ b.got=false; });
   S.trainDone={}; S.trainWeek=0;
+  S.days={}; S.curDay=dayKey(); S.streakDay=''; S.streakPrevDay=''; S.streakPrevN=0;
+  recordWeight(w); // početna težina iz onboardinga = prva tačka na grafikonu
   S.weights=[w,w,w,w,w,w,w];
   S.weights30=Array.from({length:30},()=>w);
   S.monthKcal=[];
@@ -891,12 +957,9 @@ function load(){
     const raw=localStorage.getItem(STORE); if(!raw) return false;
     Object.assign(S, JSON.parse(raw));
     bustCaches();
-    // novi dan → resetuj dnevne brojače, ostalo (profil, istorija, navike) zadrži
-    if(S.lastDate!==todayStr()){
-      S.meals=[]; S.eaten={kcal:0,p:0,c:0,f:0}; S.water=0; S.steps=0;
-      if(Array.isArray(S.weekKcal)) S.weekKcal[6]=0;
-      S.lastDate=todayStr();
-    }
+    migrateHistory();
+    // novi dan → zaključi jučerašnji dan u istoriju i resetuj dnevne brojače
+    rolloverIfNewDay();
     recomputeEaten();
     return !!S.onboarded;
   }catch(e){ return false; }
@@ -913,7 +976,12 @@ function startApp(){
 
 /* ================= RENDER ================= */
 function renderAll(){ renderHome(); renderFast(); renderWorkout(); renderProgress(); renderProfile(); save(); }
+// ako je aplikacija ostala otvorena preko ponoći, zaključi dan i kreni ispočetka
+function checkNewDay(){ if(S.onboarded && rolloverIfNewDay()){ recomputeEaten(); renderAll(); } }
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkNewDay(); });
+setInterval(checkNewDay,60000);
 function renderHome(){
+  snapshotDay(); computeHistory(); // voda, koraci i vježbe takođe idu u današnji zapis
   const t=S.target,e=S.eaten,left=Math.max(t.kcal-e.kcal,0);
   syncPosnoBtns();
   $('greet').textContent='Zdravo, '+S.name;
@@ -959,8 +1027,8 @@ function renderMeals(){
 function renderWeek(){
   const days=['P','U','S','Č','P','S','N'];
   $('weekStrip').innerHTML=S.week.map((v,i)=>{
-    const cls=v===2?'today':v===1?'done':'miss';
-    const inner=v===1?'✓':v===2?(days[i]):'·';
+    const cls=v===2?'today':v===1?'done':v===3?'miss future':'miss';
+    const inner=v===1?'✓':v===2?(days[i]):v===3?'':'·';
     return `<div class="d ${cls}"><div class="dot">${inner}</div><div class="lb">${days[i]}</div></div>`;
   }).join('');
 }
@@ -980,7 +1048,8 @@ function mealLabel(m){ if(m.unit==='porcija') return m.qty===1?m.baseName:`${m.b
   return `${m.baseName} (${m.qty} ${m.unit})`; }
 function recomputeEaten(){ const e={kcal:0,p:0,c:0,f:0};
   S.meals.forEach(m=>{const s=mealMacros(m);e.kcal+=s.kc;e.p+=s.p;e.c+=s.c;e.f+=s.f;}); S.eaten=e;
-  S.weekKcal[6]=Math.round(e.kcal); }
+  if(S.meals.length) markActiveToday(); else unmarkToday();
+  snapshotDay(); computeHistory(); }
 function pushMeal(m){ if(!m.slot)m.slot=S.addSlot||currentSlot(); S.meals.push(m);
   recomputeEaten(); renderHome(); awardXp(10); addRecent(m);
   if(S.meals.length===1) unlockBadge('first');
@@ -1036,13 +1105,15 @@ function saveSteps(){ S.steps=Math.max(0,+$('stIn').value||0); S.stepGoal=Math.m
 function setWPeriod(p){ S.wPeriod=p; $('wp7').classList.toggle('on',p==='7'); $('wp30').classList.toggle('on',p==='30'); renderProgress(); }
 function renderProgress(){
   $('curW').textContent=S.w+' kg';
-  if(S.weights30.length) S.weights30[29]=S.w;
+  computeHistory();
   const days=['P','U','S','Č','P','S','N'];
   const w = S.wPeriod==='30' ? S.weights30 : S.weights;
   const min=Math.min(...w)-0.4,max=Math.max(...w)+0.4;
+  const now=new Date();
   $('wChart').innerHTML=w.map((v,i)=>{
     const h=8+((v-min)/(max-min||1))*88;
-    const lbl = S.wPeriod==='30' ? (i%5===0?`${i+1}`:'') : days[i];
+    // posljednjih 7 dana zaključno sa danas → slovo stvarnog dana u sedmici
+    const lbl = S.wPeriod==='30' ? (i%5===0?`${i+1}`:'') : days[(addDays(now,i-6).getDay()+6)%7];
     return `<div class="col ${S.wPeriod==='30'?'thin':''}"><i style="height:${h}%"></i><span>${lbl}</span></div>`;
   }).join('');
   const delta=+(w[w.length-1]-w[0]).toFixed(1);
@@ -1051,14 +1122,14 @@ function renderProgress(){
 
   // nedjeljni pregled kalorija
   const wk=S.weekKcal, tgt=S.target.kcal, maxK=Math.max(...wk,tgt)*1.1;
-  const avg=Math.round(wk.reduce((a,b)=>a+b,0)/wk.length);
+  const logged=wk.filter(v=>v>0), avg=logged.length?Math.round(logged.reduce((a,b)=>a+b,0)/logged.length):0;
   const daysMet=wk.filter(v=>v>0 && v<=tgt*1.05).length;
-  const chart=wk.map((v,i)=>{const h=maxK?v/maxK*100:0;const over=v>tgt*1.05;const today=i===6;
+  const chart=wk.map((v,i)=>{const h=maxK?v/maxK*100:0;const over=v>tgt*1.05;const today=i===S.weekTodayIdx;
     return `<div class="col"><small>${v?fmt(v):''}</small><i style="height:${Math.max(h,2)}%;background:${today?'linear-gradient(var(--accent),#2b8fd6)':over?'var(--danger)':'linear-gradient(var(--green),var(--green2))'}"></i><span>${days[i]}</span></div>`;}).join('');
   const _td=currentTrain(); const wtot=_td.filter(d=>!d.rest).length, wdone=_td.filter((d,i)=>!d.rest&&S.trainDone[i]).length;
   const mAvg=Math.round(S.monthKcal.reduce((a,b)=>a+b,0)/(S.monthKcal.length||1));
   const mDelta=+((S.weights30[29]||S.w)-(S.weights30[0]||S.w)).toFixed(1);
-  const mMet=S.monthKcal.filter(v=>v<=tgt*1.05).length;
+  const mMet=S.monthMet||0;
   $('progExtra').innerHTML=`
     <div class="stat">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
@@ -2479,7 +2550,7 @@ function openEdit(){
 }
 let editG=null;
 function editGoal(k){ editG=k; document.querySelectorAll('.sheet .seg button').forEach(b=>b.classList.toggle('on',b.textContent===GOALS[k].t)); }
-function saveEdit(){ if(editG)S.goal=editG; S.w=+$('eW').value||S.w; S.tw=+$('eTW').value||S.tw; S.act=+$('eAct').value; S.weights[6]=S.w;
+function saveEdit(){ if(editG)S.goal=editG; S.w=+$('eW').value||S.w; S.tw=+$('eTW').value||S.tw; S.act=+$('eAct').value; recordWeight(S.w);
   calcPlan(); closeSheet(); renderAll(); toast('Plan ažuriran ✓'); }
 
 /* ================= GEJMIFIKACIJA ================= */
@@ -2585,7 +2656,7 @@ function openWeight(){
 }
 function saveWeight(){
   const v=+$('wIn').value; if(!v)return;
-  S.w=v; S.weights.push(v); if(S.weights.length>7)S.weights.shift();
+  S.w=v; recordWeight(v); computeHistory();
   closeSheet(); renderProgress(); renderProfile(); awardXp(10);
   if(S.goal!=='gain' && v<=S.tw){ unlockBadge('goal'); } else { toast('Težina zabilježena ✓ (+10 XP)'); }
 }
@@ -2766,7 +2837,8 @@ let _pushT=null,_pushing=false;
 function schedulePush(){ if(!loggedIn()||!navigator.onLine) return; clearTimeout(_pushT); _pushT=setTimeout(cloudPush,1600); }
 async function cloudPush(){
   if(!loggedIn()||_pushing) return; _pushing=true;
-  const body=JSON.stringify({data:{ajmo:S, ajmo_ts:Date.now()}});
+  // keš AI recepata ne ide u oblak: user_metadata ulazi u login token, pa mora ostati mali
+  const body=JSON.stringify({data:{ajmo:{...S, recipeCache:undefined}, ajmo_ts:Date.now()}});
   try{
     let r=await fetch(SB_URL+'/auth/v1/user',{method:'PUT',headers:_ah(true),body});
     if(r.status===401 && await sbRefresh()) r=await fetch(SB_URL+'/auth/v1/user',{method:'PUT',headers:_ah(true),body});
@@ -2787,9 +2859,11 @@ async function cloudPull(){
 }
 function applyState(obj){
   try{
+    const localCache=S.recipeCache;
     Object.assign(S,obj);
-    bustCaches();
-    if(S.lastDate!==todayStr()){ S.meals=[]; S.eaten={kcal:0,p:0,c:0,f:0}; S.water=0; S.steps=0; if(Array.isArray(S.weekKcal)) S.weekKcal[6]=0; S.lastDate=todayStr(); }
+    if(!obj.recipeCache) S.recipeCache=localCache||{}; // keš recepata se ne šalje u oblak
+    bustCaches(); migrateHistory();
+    rolloverIfNewDay();
     recomputeEaten(); try{localStorage.setItem(STORE,JSON.stringify(S));}catch(e){} renderAll();
   }catch(e){}
 }

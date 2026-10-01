@@ -627,7 +627,7 @@ async function handleAccountDelete(req, res) {
   const enc = encodeURIComponent;
   try {
     // prateći podaci (neuspjeh ovdje ne smije spriječiti brisanje naloga, ali se loguje)
-    for (const q of [`pro_users?email=eq.${enc(user.email)}`, `waitlist?email=eq.${enc(user.email)}`, `ai_usage?subject=eq.${enc('u:' + user.id)}`]) {
+    for (const q of [`user_state?user_id=eq.${enc(user.id)}`, `pro_users?email=eq.${enc(user.email)}`, `waitlist?email=eq.${enc(user.email)}`, `ai_usage?subject=eq.${enc('u:' + user.id)}`]) {
       const r = await sbAdmin(q, 'DELETE').catch(() => null);
       if (!r || (!r.ok && r.status !== 404)) console.error('account delete: ' + q.split('?')[0] + ' HTTP ' + (r && r.status));
     }

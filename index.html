@@ -2991,30 +2991,85 @@ async function doNewPw(){
   }catch(e){ if(msg){ msg.style.color='#d3543f'; msg.textContent=e.message||'Greška. Pokušaj ponovo.'; } }
 }
 
-let _pushT=null,_pushing=false;
-function schedulePush(){ if(!loggedIn()||!navigator.onLine) return; clearTimeout(_pushT); _pushT=setTimeout(cloudPush,1600); }
-async function cloudPush(){
-  if(!loggedIn()||_pushing) return; _pushing=true;
-  // keš AI recepata ne ide u oblak: user_metadata ulazi u login token, pa mora ostati mali
-  const body=JSON.stringify({data:{ajmo:{...S, recipeCache:undefined}, ajmo_ts:Date.now()}});
+/* ===== sinhronizacija sa oblakom: tabela user_state (jedan red po korisniku, RLS) =====
+   - šalje se samo kad se podaci stvarno promijene (ne pri svakom crtanju ekrana)
+   - pobjeđuje novija izmjena (S.editTs), pa se izmjene bez interneta ne gube
+   - stari korisnici: podaci iz user_metadata (login token) se jednom prebace u tabelu, pa obrišu iz tokena
+   - dok tabela ne postoji (SQL nije pokrenut), radi stari način preko user_metadata */
+let _pushT=null,_pushing=false,_lastSyncStr=null,_useTable=true;
+// _syncReady: dok prvo preuzimanje iz oblaka ne završi, lokalna preračunavanja (npr. novi dan) nisu "izmjena"
+// _applying: dok primjenjujemo podatke iz oblaka, ne šaljemo ih nazad
+let _syncReady=false,_applying=false;
+function sbUid(){ try{ const t=(_sess()||{}).access_token||''; const p=t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'); return JSON.parse(atob(p)).sub||''; }catch(e){ return ''; } }
+function syncPayload(){ const o=Object.assign({},S); delete o.recipeCache; delete o.editTs; return o; } // keš recepata ostaje lokalno
+// true ako su se podaci promijenili od posljednje sinhronizacije (tada osvježi vrijeme izmjene)
+function markDirty(){ const s=JSON.stringify(syncPayload()); if(s===_lastSyncStr) return false; _lastSyncStr=s; S.editTs=Date.now(); return true; }
+function syncBaseline(){ _lastSyncStr=JSON.stringify(syncPayload()); }
+function schedulePush(){ if(!loggedIn()) return; if(!_syncReady||_applying){ syncBaseline(); return; } if(!markDirty()) return; clearTimeout(_pushT); _pushT=setTimeout(()=>{_pushT=null;cloudPush();},1600); }
+async function _sbFetch(url,opt){ let r=await fetch(url,Object.assign({},opt,{headers:Object.assign(_ah(true),opt&&opt.extraHeaders||{})})); if(r.status===401 && await sbRefresh()) r=await fetch(url,Object.assign({},opt,{headers:Object.assign(_ah(true),opt&&opt.extraHeaders||{})})); return r; }
+const _tableMissing=(r,txt)=>r.status===404||/relation .*user_state|PGRST205|42P01/.test(txt||'');
+async function cloudPush(keepalive){
+  if(!loggedIn()||!navigator.onLine||_pushing) return; _pushing=true;
+  const state=Object.assign(syncPayload(),{editTs:S.editTs||Date.now()});
   try{
-    let r=await fetch(SB_URL+'/auth/v1/user',{method:'PUT',headers:_ah(true),body});
-    if(r.status===401 && await sbRefresh()) r=await fetch(SB_URL+'/auth/v1/user',{method:'PUT',headers:_ah(true),body});
-    setSync(r.ok);
+    let ok=false;
+    if(_useTable){
+      const r=await _sbFetch(SB_URL+'/rest/v1/user_state?on_conflict=user_id',{method:'POST',keepalive:!!keepalive,
+        extraHeaders:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+        body:JSON.stringify([{user_id:sbUid(),state,updated_at:new Date().toISOString()}])});
+      ok=r.ok;
+      if(!ok && _tableMissing(r,await r.text().catch(()=>''))) _useTable=false;
+    }
+    if(!_useTable){ // rezerva: stari način dok se ne pokrene SQL
+      const r=await _sbFetch(SB_URL+'/auth/v1/user',{method:'PUT',keepalive:!!keepalive,body:JSON.stringify({data:{ajmo:state,ajmo_ts:state.editTs}})});
+      ok=r.ok;
+    }
+    setSync(ok);
   }catch(e){ setSync(false); } finally{ _pushing=false; }
 }
+// novi podaci iz oblaka pobjeđuju samo ako su noviji od lokalnih (ili ovaj uređaj još nema profil)
+function _cloudWins(cloud,cloudTs){ return !!(cloud&&cloud.onboarded) && (!S.onboarded || (cloudTs||0)>(S.editTs||0)); }
 async function cloudPull(){
   if(!loggedIn()) return;
+  try{ await _cloudPull(); } finally { _syncReady=true; syncBaseline(); }
+}
+async function _cloudPull(){
   try{
-    let r=await fetch(SB_URL+'/auth/v1/user',{headers:_ah(true)});
-    if(r.status===401 && await sbRefresh()) r=await fetch(SB_URL+'/auth/v1/user',{headers:_ah(true)});
+    if(_useTable){
+      const r=await _sbFetch(SB_URL+'/rest/v1/user_state?select=state,updated_at&limit=1',{});
+      const txt=await r.text().catch(()=>'');
+      if(r.ok){
+        const row=(JSON.parse(txt||'[]')||[])[0];
+        if(row&&row.state){
+          const ts=row.state.editTs||Date.parse(row.updated_at)||0;
+          if(_cloudWins(row.state,ts)) applyState(row.state);
+          else if((S.editTs||0)>ts) cloudPush();
+          setSync(true); return;
+        }
+        await migrateLegacyCloud(); setSync(true); return;   // nema reda → prebaci stare podatke iz tokena
+      }
+      if(_tableMissing(r,txt)) _useTable=false; else return;
+    }
+    // rezerva: stari način (user_metadata)
+    const r=await _sbFetch(SB_URL+'/auth/v1/user',{});
     if(!r.ok) return;
-    const d=await r.json().catch(()=>({}));
-    const cloud=d && d.user_metadata && d.user_metadata.ajmo;
-    if(cloud && cloud.onboarded){ applyState(cloud); } else { cloudPush(); }
+    const d=await r.json().catch(()=>({})), cloud=d&&d.user_metadata&&d.user_metadata.ajmo;
+    if(_cloudWins(cloud,(d.user_metadata&&d.user_metadata.ajmo_ts)||0)) applyState(cloud); else cloudPush();
     setSync(true);
   }catch(e){}
 }
+// jednokratno: user_metadata.ajmo → tabela user_state, pa očisti token
+async function migrateLegacyCloud(){
+  const r=await _sbFetch(SB_URL+'/auth/v1/user',{}); if(!r.ok) return;
+  const d=await r.json().catch(()=>({})), md=(d&&d.user_metadata)||{}, legacy=md.ajmo;
+  if(_cloudWins(legacy,md.ajmo_ts||0)) applyState(legacy);
+  if(!S.onboarded) return;
+  if(!S.editTs) S.editTs=Date.now();
+  await cloudPush();
+  if(legacy) await _sbFetch(SB_URL+'/auth/v1/user',{method:'PUT',body:JSON.stringify({data:{ajmo:null,ajmo_ts:null}})}).catch(()=>{});
+}
+// ne izgubi posljednju izmjenu kad korisnik zatvori ili spusti aplikaciju
+document.addEventListener('visibilitychange',()=>{ if(document.hidden && _pushT){ clearTimeout(_pushT); _pushT=null; cloudPush(true); } });
 function applyState(obj){
   try{
     const localCache=S.recipeCache;
@@ -3022,7 +3077,9 @@ function applyState(obj){
     if(!obj.recipeCache) S.recipeCache=localCache||{}; // keš recepata se ne šalje u oblak
     bustCaches(); migrateHistory();
     rolloverIfNewDay();
-    recomputeEaten(); try{localStorage.setItem(STORE,JSON.stringify(S));}catch(e){} renderAll();
+    _applying=true;
+    try{ recomputeEaten(); try{localStorage.setItem(STORE,JSON.stringify(S));}catch(e){} renderAll(); }
+    finally{ _applying=false; syncBaseline(); } // upravo stiglo iz oblaka — ne šalji nazad
   }catch(e){}
 }
 function setSync(ok){ const el=$('acctRt'); if(el && loggedIn()) el.innerHTML=(ok?'Sinhronizovano ✓':'Van mreže')+' <span>›</span>'; }

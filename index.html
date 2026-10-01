@@ -560,6 +560,9 @@ body.dark .trainhead{background:linear-gradient(135deg,#1a1c2a,var(--card))}
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const API = IS_NATIVE ? 'https://ajmo.fit' : '';
 if(IS_NATIVE) document.documentElement.classList.add('native');
+// Cijene: web (Paddle) i prodavnice (App Store / Google Play) se razlikuju.
+// TODO(IAP): u native aplikaciji zamijeniti cijenama iz prodavnice preko RevenueCat-a (lokalizovano po zemlji).
+const PRICE = IS_NATIVE ? {y:'34,99€', ym:'2,92€', m:'6,99€'} : {y:'24,99€', ym:'2,08€', m:'4,99€'};
 // uslovi, privatnost, cijene… — u native aplikaciji se otvaraju sa ajmo.fit u pregledaču telefona
 function openExt(path){ window.open((IS_NATIVE?'https://ajmo.fit':'')+path,'_blank'); }
 /* lagana analitika — samo naziv događaja, bez ličnih podataka */
@@ -868,11 +871,11 @@ const STEPS=[
     </div>
     <div class="plans" id="obPlans" style="margin:6px 0 10px">
       <div class="plan sel" data-p="year" onclick="pickPlanOb('year')"><div class="rd"></div>
-        <div><div class="pn">Godišnje</div><div class="pd">24,99€/god · ušteda</div></div>
-        <div class="pp"><b>2,08€</b><span>/ mjesec</span></div></div>
+        <div><div class="pn">Godišnje</div><div class="pd">${PRICE.y}/god · ušteda</div></div>
+        <div class="pp"><b>${PRICE.ym}</b><span>/ mjesec</span></div></div>
       <div class="plan" data-p="month" onclick="pickPlanOb('month')"><div class="rd"></div>
         <div><div class="pn">Mjesečno</div><div class="pd">Otkaži bilo kada</div></div>
-        <div class="pp"><b>4,99€</b><span>/ mjesec</span></div></div></div>
+        <div class="pp"><b>${PRICE.m}</b><span>/ mjesec</span></div></div></div>
     <p class="sub" style="margin:4px 0 12px">Uđi odmah — <b>bez kartice, bez naloga</b> (1 AI procjena dnevno). Pro uključiš kad poželiš.</p>
     <button class="cta" onclick="finishOnboard()">Uđi besplatno →</button>
     <div style="margin-top:14px"><a onclick="payHook()" style="color:var(--pro);font-size:13.5px;font-weight:800;cursor:pointer;text-decoration:underline">Ili napravi nalog — 3 dana Pro besplatno, bez kartice</a></div></div>`
@@ -2763,7 +2766,22 @@ function openScanner(){
       <button onclick="lookupBarcode(document.getElementById('manualCode').value)">Traži</button></div>
     <button class="cancel" onclick="closeScanner()">Otkaži</button>`;
   document.body.appendChild(m);
-  startScan();
+  if(nativeScanner()){ $('reader').style.display='none'; startNativeScan(); } else startScan();
+}
+/* native aplikacija: pravi skener (iOS kamera / Android ML Kit) preko @capacitor/barcode-scanner */
+function nativeScanner(){ return IS_NATIVE && window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.CapacitorBarcodeScanner; }
+async function startNativeScan(){
+  if($('scanMsg')) $('scanMsg').textContent='Otvaram kameru…';
+  try{
+    const r=await nativeScanner().scanBarcode({ hint:17 /* svi formati */, scanInstructions:'Usmjeri kameru na barkod proizvoda',
+      scanButton:false, cameraDirection:1, scanOrientation:1, android:{scanningLibrary:'mlkit'} });
+    const code=r&&r.ScanResult;
+    if(code) return lookupBarcode(code);
+    throw new Error('empty');
+  }catch(e){
+    // korisnik je odustao ili kamera nije dozvoljena — ostaje ručni unos
+    if($('scanMsg')) $('scanMsg').innerHTML='Skeniranje prekinuto. Unesi broj barkoda ručno ili <a href="#" onclick="startNativeScan();return false" style="color:inherit;text-decoration:underline;font-weight:800">pokušaj ponovo</a>.';
+  }
 }
 function startScan(){
   if(typeof Html5Qrcode==='undefined'){ $('scanMsg').textContent='Skener se učitava — ako ne krene, unesi broj barkoda ručno.'; return; }
@@ -2788,10 +2806,12 @@ async function lookupBarcode(code){
     const d=await r.json();
     closeScanner();
     if(!d.found){ toast('Proizvod nije u bazi — dodaj ručno ili slikaj'); openAdd(S.addSlot); return; }
-    // sačuvaj kao svoju namirnicu (vrijednosti po 100 g) i otvori izbor količine
-    const id='c'+(++S.customSeq);
-    S.customFoods[id]={e:'🏷️',name:d.name,cat:'moje',unit:'g',step:10,def:100,
-      per:{kc:d.per100g.kcal,p:d.per100g.protein_g,c:d.per100g.carbs_g,f:d.per100g.fat_g}};
+    // sačuvaj kao svoju namirnicu (vrijednosti po 100 g) i otvori izbor količine;
+    // isti barkod ponovo → koristi postojeću namirnicu umjesto duplikata
+    const per={kc:d.per100g.kcal,p:d.per100g.protein_g,c:d.per100g.carbs_g,f:d.per100g.fat_g};
+    let id=Object.keys(S.customFoods||{}).find(k=>S.customFoods[k]&&S.customFoods[k].code===code);
+    if(id){ Object.assign(S.customFoods[id],{name:d.name,per}); }
+    else { id='c'+(++S.customSeq); S.customFoods[id]={e:'🏷️',name:d.name,cat:'moje',unit:'g',step:10,def:100,per,code}; }
     save(); toast('✓ '+d.name); openQty(id);
   }catch(e){ if($('scanMsg'))$('scanMsg').textContent='Greška: '+e.message; else toast('Greška pri pretrazi'); }
 }
@@ -2825,11 +2845,11 @@ function openPaywall(){
       <div><span class="ck">✓</span> Planovi treninga po cilju i polu</div></div>
     <div class="plans" id="plans">
       <div class="plan sel" data-p="year" onclick="pickPlan('year')"><div class="rd"></div>
-        <div><div class="pn">Godišnje</div><div class="pd">24,99€/god</div></div>
-        <div class="pp"><b>2,08€</b><span>/ mjesec</span></div></div>
+        <div><div class="pn">Godišnje</div><div class="pd">${PRICE.y}/god</div></div>
+        <div class="pp"><b>${PRICE.ym}</b><span>/ mjesec</span></div></div>
       <div class="plan" data-p="month" onclick="pickPlan('month')"><div class="rd"></div>
         <div><div class="pn">Mjesečno</div><div class="pd">Otkaži bilo kada</div></div>
-        <div class="pp"><b>4,99€</b><span>/ mjesec</span></div></div></div>
+        <div class="pp"><b>${PRICE.m}</b><span>/ mjesec</span></div></div></div>
     ${guest
       ? `<button class="buy" onclick="startTrialSignup()">Napravi nalog — 3 dana besplatno</button>
          <p class="tiny">Bez kartice. Poslije probe biraš da li nastavljaš uz Pro.${IS_NATIVE?'':'<br><a onclick="buyPro()" style="text-decoration:underline;cursor:pointer">Ili se odmah pretplati</a>'}</p>`
